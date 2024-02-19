@@ -1,5 +1,6 @@
 import importlib
 import os
+import time
 import warnings
 warnings.filterwarnings('ignore')
 import argparse
@@ -13,12 +14,12 @@ from utils import dotdict
 from utils import calculate_mof
 from testtime_postprocess import PostProcess
 import torch.nn.functional as F
-from testtime_dataset import AugmentDataset, collate_fn_override
+from testtime_dataset_inHard_3 import AugmentDataset, collate_fn_override
 
 
 
 my_parser = argparse.ArgumentParser()
-my_parser.add_argument('--dataset_name', type=str, default="breakfast", choices=['breakfast', '50salads', 'gtea'])
+my_parser.add_argument('--dataset_name', type=str, default="breakfast", choices=['breakfast', '50salads', 'gtea', 'epic', 'InHARD', 'InHARD_3'])
 my_parser.add_argument('--split', type=int, required=False, help="Comma seperated split number to run evaluation," + \
                                                                   "default = 1,2,3,4 for breakfast and gtea, 1,2,3,4,5 for 50salads")
 my_parser.add_argument('--cudad', type=str, default='0', help="Cuda device number to run evaluation program in")
@@ -67,7 +68,9 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 config = dotdict(
     epochs=500,
     dataset=args.dataset_name,
-    feature_size=2048,
+    feature_size = 51,
+    #feature_size = 2048,
+    #feature_size = 2304, #epic
     gamma=0.5,
     step_size=500,
     model_path=args.model_path,
@@ -95,10 +98,63 @@ if args.dataset_name == "breakfast":
         config.weights = [1]
         config.eval_true = True
 
+elif args.dataset_name == "epic":
+    config.chunk_size = 10
+    config.max_frames_per_video = 60000
+    config.learning_rate = 1e-4
+    config.weight_decay = 3e-3
+    config.batch_size = 100
+    config.num_class = 98
+    config.back_gd = ['BG']
+    config.split = [1]
+    if not args.compile_result:
+        config.chunk_size = list(range(7, 16))
+        config.weights = np.ones(len(config.chunk_size))
+    else:
+        config.chunk_size = [10]
+        config.weights = [1]
+        config.eval_true = True
+
+elif args.dataset_name == "InHARD":
+    config.chunk_size = 2
+    config.max_frames_per_video = 26524 #9450  #5068 #14200
+    config.learning_rate = 1e-4
+    config.weight_decay = 3e-3
+    config.batch_size = 30 #100
+    config.num_class = 14 #12
+    #config.back_gd = ['']
+    config.back_gd = ['No action']
+    config.split = [1]
+    if not args.compile_result:
+        config.chunk_size = list(range(1, 10))
+        config.weights = np.ones(len(config.chunk_size))
+    else:
+        config.chunk_size = [2]
+        config.weights = [1]
+        config.eval_true = True
+
+elif args.dataset_name == "InHARD_3":
+    config.chunk_size = 2
+    config.max_frames_per_video = 26334 #12774
+    config.learning_rate = 1e-4
+    config.weight_decay = 3e-3
+    config.batch_size = 25
+    config.num_class = 4
+    #config.back_gd = ['']
+    config.back_gd = ['No action']
+    config.split = [1]
+    if not args.compile_result:
+        config.chunk_size = list(range(1, 10))
+        config.weights = np.ones(len(config.chunk_size))
+    else:
+        config.chunk_size = [2]
+        config.weights = [1]
+        config.eval_true = True
+
 elif args.dataset_name == "gtea":
     config.chunk_size = 4
     config.max_frames_per_video = 600
-    config.learning_rate = 5e-4
+    config.learning_rate = 4e-4
     config.weight_decay = 3e-4
     config.batch_size = 11
     config.num_class = 11
@@ -136,8 +192,8 @@ if args.split is not None:
     except:
         config.split = args.split.split(',')
 
-config.features_file_name = config.base_dir + "/features/"
-config.ground_truth_files_dir = config.base_dir + "/groundTruth/"
+config.features_file_name = config.base_dir + "/features/60fps/"
+config.ground_truth_files_dir = config.base_dir + "/groundTruth/60fps/"
 config.label_id_csv = config.base_dir + "mapping.csv"
 
 
@@ -173,13 +229,14 @@ def model_pipeline(config):
         print("printing getting the output from output dir = ", config.output_dir)
         config.project_name="{}-split{}".format(config.dataset, ele)
         config.test_split_file = config.base_dir + "splits/test.split{}.bundle".format(ele)
-        # make the model, data, and optimization problem
+        # make the model, data, and optimization problemè()
         model, test_loader, postprocessor = make(config)
         model.load_state_dict(load_best_model(config))
         prefix = ''
 
         # model.eval()
 
+        start = time.time()
 
         correct, correct1, total = 0, 0, 0
         postprocessor.start()
@@ -217,6 +274,11 @@ def model_pipeline(config):
         f1_10_list.append(overlap_scores[0])
         f1_25_list.append(overlap_scores[1])
         f1_50_list.append(overlap_scores[2])
+        
+        end = time.time()
+        print(" Done! time: {:0.2f} sec".format(end - start))
+    
+    
 
     print("Frame accuracy = ", np.mean(np.array(acc_list)))
     print("Edit Scores = ", np.mean(np.array(edit_list)))

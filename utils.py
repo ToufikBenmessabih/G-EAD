@@ -111,7 +111,7 @@ def recog_file(filename, ground_truth_path, overlap, background_class_list):
         if recog_content[i] == gt_content[i]:
             n_frame_correct += 1
 
-    print('BG-------------------: ', background_class_list)
+    #print('BG-------------------: ', background_class_list)
     edit_score_value = edit_score(recog_content, gt_content, background_class_list)
 
     tp_arr = []

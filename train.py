@@ -13,15 +13,18 @@ from utils import dotdict
 from utils import calculate_mof
 from postprocess import PostProcess
 import torch.nn.functional as F
-from dataset import AugmentDataset, collate_fn_override
+from dataset_inHard_3 import AugmentDataset, collate_fn_override
+import wandb
+
 seed = 42
 
+
 my_parser = argparse.ArgumentParser()
-my_parser.add_argument('--dataset_name', type=str, default="breakfast", choices=['breakfast', '50salads', 'gtea'])
+my_parser.add_argument('--dataset_name', type=str, default="breakfast", choices=['breakfast', '50salads', 'gtea', 'epic', 'InHARD', 'InHARD_3'])
 my_parser.add_argument('--split', type=int, required=True, help="Split number of the dataset")
 my_parser.add_argument('--cudad', type=str, default='0', help="Cuda device number to run the program")
 my_parser.add_argument('--base_dir', type=str, help="Base directory containing groundTruth, features, splits, results directory of dataset")
-my_parser.add_argument('--model_path', type=str, default='model')
+my_parser.add_argument('--model_path', type=str, default='model_5')
 my_parser.add_argument('--wd', type=float, required=False, help="Provide weigth decay if you want to change from default")
 my_parser.add_argument('--lr', type=float, required=False, help="Provide learning rate if you want to change from default")
 my_parser.add_argument('--chunk_size', type=int, required=False, help="Provide chunk size to be used if you want to change from default")
@@ -34,6 +37,24 @@ my_parser.add_argument('--num_workers', type=int, default=0, help="Number of wor
 my_parser.add_argument('--out_dir', required=False, help="Directory where output(checkpoints, logs, results) is to be dumped")
 args = my_parser.parse_args()
 
+# start a new wandb run to track this script
+wandb.init(
+    # set the wandb project where this run will be logged
+    project="Action segmentation",
+    # track hyperparameters and run metadata
+    config={
+    "chunk_size": 2,
+    "learning_rate": 0.0001,
+    "architecture": "C2F-TCN",
+    "dataset": "InHARD_3",
+    "epochs": 500,
+    "ff": 1, #frame_per_feature
+    "fps": 60, #frame_per_second
+    "actions": 4,
+    "batch-size": 25,
+    "nbr-layers": 5,
+    "ensm": 4
+    })
 
 if args.err_bar:
     seed = args.err_bar #np.random.randint(0, 999999)
@@ -57,7 +78,9 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 config = dotdict(
     epochs = 500,
     dataset = args.dataset_name,
-    feature_size = 2048,
+    feature_size = 51,
+    #feature_size = 2048, #inhard
+    #feature_size = 2304, #epic
     gamma = 0.5,
     step_size = 500,
     split_number = args.split,
@@ -74,6 +97,34 @@ if args.dataset_name == "breakfast":
     config.batch_size = 100
     config.num_class = 48
     config.back_gd = ['SIL']
+    config.ensem_weights = [1, 1, 1, 1, 0, 0]
+elif args.dataset_name == "epic":
+    config.chunk_size = 10 #window for feature augmentation
+    config.max_frames_per_video = 60000
+    config.learning_rate = 1e-4
+    config.weight_decay = 3e-3
+    config.batch_size = 20
+    config.num_class = 98
+    config.back_gd = ['BG']
+    config.ensem_weights = [1, 1, 1, 1, 0, 0]
+elif args.dataset_name == "InHARD":
+    config.chunk_size = 2 #window for feature augmentation
+    config.max_frames_per_video = 26524 #9450  #5068 #14148
+    config.learning_rate = 1e-4 #---------------------------
+    config.weight_decay = 3e-3
+    config.batch_size = 30 #30 #100
+    config.num_class = 14 #12 
+    #config.back_gd = ['']
+    config.back_gd = ['No action']
+    config.ensem_weights = [1, 1, 1, 1, 0]
+elif args.dataset_name == "InHARD_3":
+    config.chunk_size = 2 #window for feature augmentation
+    config.max_frames_per_video = 26334 # 12774 
+    config.learning_rate = 1e-4 #---------------------------
+    config.weight_decay = 3e-3
+    config.batch_size = 25
+    config.num_class = 4
+    config.back_gd = ['No action']
     config.ensem_weights = [1, 1, 1, 1, 0, 0]
 elif args.dataset_name == "gtea":
     config.chunk_size = 4
@@ -121,8 +172,8 @@ if args.ensem_weights is not None:
 print("printing in output dir = ", config.output_dir)
 config.project_name="{}-split{}".format(config.dataset, config.split_number)
 config.train_split_file = config.base_dir + "splits/train.split{}.bundle".format(config.split_number)
-config.test_split_file = config.base_dir + "splits/test.split{}.bundle".format(config.split_number)
-config.features_file_name = config.base_dir + "/features/"
+config.test_split_file = config.base_dir + "splits/validation.split{}.bundle".format(config.split_number)
+config.features_file_name = config.base_dir + "/features/60fps"
 
 if args.ft_file is not None:
     config.features_file_name = os.path.join(config.base_dir, args.ft_file)
@@ -132,7 +183,7 @@ if args.ft_size is not None:
     config.feature_size = args.ft_size
     config.output_dir = config.output_dir + "_ft_size{}".format(args.ft_file)
  
-config.ground_truth_files_dir = config.base_dir + "/groundTruth/"
+config.ground_truth_files_dir = config.base_dir + "/groundTruth/60fps/"
 config.label_id_csv = config.base_dir + "mapping.csv"
 
 config.output_dir = config.output_dir + "/"
@@ -147,6 +198,7 @@ def model_pipeline(config):
     # make the model, data, and optimization problem
     model, train_loader, test_loader, criterion, optimizer, scheduler, postprocessor = make(config)
 
+    #print (model)
     # and use them to train the model
     train(model, train_loader, criterion, optimizer, scheduler, config, test_loader, postprocessor)
 
@@ -192,11 +244,23 @@ def make(config):
 class CriterionClass(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.ce = nn.CrossEntropyLoss(ignore_index=-100)  # Frame wise cross entropy loss
+        # Class-specific weights (you can adjust these according to your requirements)
+        #class_weights = torch.tensor([1.0, 20.0, 7.0, 6.0, 7.0, 5.0, 3.0, 39.0, 44.0, 8.0, 25.0, 1.0, 47.0, 13.0])
+        
+        #class_weights = torch.tensor([1.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 1.0, 2.0, 2.0])
+        #class_weights = torch.tensor([6.0, 2.0, 2.0, 2.0, 2.0, 1.0, 11.0, 13.0, 2.0, 7.0, 14.0, 4.0])
+
+        '''class_weights = torch.tensor([0.0205118, 0.4130183, 0.148845, 0.1303033, 0.1341922, 0.1060895, 
+                                      0.0702484, 0.7961783, 0.9090909, 0.1573812, 0.5062778, 0.0200329, 
+                                      0.9619084, 0.2701826])'''
+
+        #self.ce = nn.CrossEntropyLoss(ignore_index=-100, weight=class_weights)  # Frame wise cross entropy loss
+        self.ce = nn.CrossEntropyLoss(ignore_index=-100)
         self.mse = nn.MSELoss(reduction='none')           # Migitating transistion loss 
     
     def forward(self, outp, labels, src_mask, labels_present):
         outp_wo_softmax = torch.log(outp + 1e-10)         # log is necessary because ensemble gives softmax output
+
         ce_loss = self.ce(outp_wo_softmax, labels)        
         
         mse_loss = 0.15 * torch.mean(torch.clamp(self.mse(outp_wo_softmax[:, :, 1:],
@@ -241,11 +305,14 @@ def get_model(config):
 def get_c2f_ensemble_output(outp, weights):
     
     ensemble_prob = F.softmax(outp[0], dim=1) * weights[0] / sum(weights)
+    #print('ensemble_prob: ', ensemble_prob.shape)
 
     for i, outp_ele in enumerate(outp[1]):
+        #print('outp_ele: ', outp_ele.shape)
         upped_logit = F.upsample(outp_ele, size=outp[0].shape[-1], mode='linear', align_corners=True)
+        #print('uppsampled outp_ele: ', upped_logit.shape)
         ensemble_prob = ensemble_prob + F.softmax(upped_logit, dim=1) * weights[i + 1] / sum(weights)
-    
+
     return ensemble_prob
 
 def train(model, loader, criterion, optimizer, scheduler, config, test_loader, postprocessor):
@@ -255,11 +322,14 @@ def train(model, loader, criterion, optimizer, scheduler, config, test_loader, p
     accs = []
     
     for epoch in range(config.epochs):
+        start = time.time()
         model.train()
-        print('loader: ', len(loader))
+        #print('loader: ', len(loader))
         for i, item in enumerate(loader):
+            #print('batch: ',i+1)
             samples = item[0].to(device).permute(0, 2, 1)
             count = item[1].to(device)
+            #print('count: ', count)
             labels = item[2].to(device)
             src_mask = torch.arange(labels.shape[1], device=labels.device)[None, :] < count[:, None]
             src_mask = src_mask.to(device)
@@ -267,7 +337,14 @@ def train(model, loader, criterion, optimizer, scheduler, config, test_loader, p
             src_msk_send = src_mask.to(torch.float32).to(device).unsqueeze(1)
 
             # Forward pass ➡
+            '''print('input_shape: ',samples.shape)
+            print('first sample (video): ',samples[0], len(samples[0]))
+            print('first feature: ',samples[0][0], len(samples[0][0]))'''
             outputs_list = model(samples)
+            '''print('output length: ',len(outputs_list))
+            print('output[0]: --------',len(outputs_list[0]))
+            print('output[1]: --------',len(outputs_list[1]))'''
+
             outputs_ensemble = get_c2f_ensemble_output(outputs_list, config.ensem_weights)
             
             loss_dict = criterion(outputs_ensemble, labels, src_msk_send, item[6].to(device))
@@ -281,7 +358,8 @@ def train(model, loader, criterion, optimizer, scheduler, config, test_loader, p
             optimizer.step()
             
             if i % 10 == 0:
-                print(f"Train loss after {epoch} epochs, {i} iterations is {loss_dict['full_loss']:.3f}")
+                end = time.time()
+                print(f"Train loss after {epoch} epochs, time: {end - start}, {i} iterations is {loss_dict['full_loss']:.3f}")
 
         acc, avg_score = test(model, test_loader, criterion, postprocessor, config, epoch, '')
         if avg_score > avg_best_acc:
@@ -304,6 +382,7 @@ def test(model, test_loader, criterion, postprocessors, args, epoch, dump_prefix
 
     # Run the model on some test examples
     with torch.no_grad():
+        start = time.time()
         correct, total = 0, 0
         avg_loss = []
         for i, item in enumerate(test_loader):
@@ -324,6 +403,8 @@ def test(model, test_loader, criterion, postprocessors, args, epoch, dump_prefix
             avg_loss.append(loss.item())
             
             pred = torch.argmax(outputs_ensemble, dim=1)
+            #print('preds: ', pred.shape)
+
             correct += float(torch.sum((pred == labels) * src_mask).item())
             total += float(torch.sum(src_mask).item())
             postprocessors(outputs_ensemble, item[5], labels, count)
@@ -336,8 +417,12 @@ def test(model, test_loader, criterion, postprocessors, args, epoch, dump_prefix
         final_edit_score, map_v, overlap_scores = calculate_mof(args.ground_truth_files_dir, path, config.back_gd)
         postprocessors.start()
         acc = 100.0 * correct / total
-
-        print(f"Validation loss = {np.mean(np.array(avg_loss)): .3f}, accuracy of the model after epoch {epoch} = {acc: .3f}%")
+        end = time.time()
+        val_loss = np.mean(np.array(avg_loss))
+        print(f"Validation loss = {val_loss: .3f}, accuracy of the model after epoch {epoch}, time {end - start} = {acc: .3f}%")
+        # log metrics to wandb
+        wandb.log({ "Validation loss": val_loss,"MoF": acc, "Edit": final_edit_score, "F1@10": overlap_scores[0], "F1@25": overlap_scores[1], "F1@50": overlap_scores[2]})
+        
         with open(config.output_dir + "/results_file.txt", "a+") as fp:
             fp.write("{:.1f}, {:.1f}, {:.1f}, {:.1f}, {:.1f}\n".format(overlap_scores[0], overlap_scores[1], 
                                                 overlap_scores[2], final_edit_score, map_v))
@@ -348,6 +433,7 @@ def test(model, test_loader, criterion, postprocessors, args, epoch, dump_prefix
                 
 
     avg_score = (map_v + final_edit_score) / 2
+    #avg_score = (avg_score + overlap_scores[1] + 2*overlap_scores[2]) /4 # added
     return map_v, avg_score
 
 import time
@@ -355,6 +441,8 @@ import time
 
 start_time = time.time()
 model = model_pipeline(config)
+# [optional] finish the wandb run, necessary in notebooks
+wandb.finish()
 end_time = time.time()
 
 duration = (end_time - start_time) / 60
