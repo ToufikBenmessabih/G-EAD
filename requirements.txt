@@ -1,6 +1,4 @@
 absl-py==1.1.0
-# Editable install with no version control (AFSD==1.0)
--e d:\thèse_toufik\code\tad\i3d_feature_extraction-main
 antlr4-python3-runtime==4.9.3
 anyio==3.7.1
 appdirs==1.4.4
