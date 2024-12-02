@@ -58,7 +58,7 @@ Key files and folders:
 
 ## Setup
 ### Prerequisites
-- Python 3.8+
+- Python 3.7.7
 - CUDA-compatible GPU
 
 ### Installation
