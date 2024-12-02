@@ -60,6 +60,7 @@ Key files and folders:
 ### Prerequisites
 - Python 3.7.7
 - CUDA-compatible GPU
+- VM : GPU Name: GRID T4-16Q (a virtualized NVIDIA Tesla T4).
 
 ### Installation
 1. Clone the repository:
@@ -71,7 +72,12 @@ Key files and folders:
    ```bash
    pip install -r requirements.txt
    ```
-
+3. Install pytorch:
+   Check Installed CUDA Toolkit Version: ``` nvcc --version```
+   Check NVIDIA Driver Version: ``` nvidia-smi```
+   Install CUDA: https://developer.nvidia.com/cuda-toolkit-archive
+   
+   
 ---
 
 ## Usage
