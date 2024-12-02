@@ -26,7 +26,7 @@ my_parser.add_argument('--dataset_name', type=str, default="breakfast", choices=
 my_parser.add_argument('--split', type=int, required=True, help="Split number of the dataset")
 my_parser.add_argument('--cudad', type=str, default='0', help="Cuda device number to run the program")
 my_parser.add_argument('--base_dir', type=str, help="Base directory containing groundTruth, features, splits, results directory of dataset")
-my_parser.add_argument('--model_path', type=str, default='model_5_stgcn')
+my_parser.add_argument('--model_path', type=str, default='model_5_e_stgcn')
 my_parser.add_argument('--wd', type=float, required=False, help="Provide weigth decay if you want to change from default")
 my_parser.add_argument('--lr', type=float, required=False, help="Provide learning rate if you want to change from default")
 my_parser.add_argument('--chunk_size', type=int, required=False, help="Provide chunk size to be used if you want to change from default")
@@ -65,123 +65,22 @@ print('device: ', device)
 config = dotdict(
     epochs = 500,
     dataset = args.dataset_name,
-    #feature_size = 504, #inhard_13 pose light(21) mtm3
-    #feature_size = 51, #inhard_3
-    #feature_size = 2048, #inhard
-    #feature_size = 2304, #epic
-    feature_size =  63, #31, inhard_13 2D, IKEA 2D
-    #feature_size = 216, #inhard_13 3D positions OR velocity
-    #feature_size = 279, #inhard_13 3D positions + orientations
-    #feature_size = 448, #inhard_13 3D positions backbone
-    #feature_size = 72, #inhard_13 bone angles
-    #feature_size = 288, #inhard_13 pose + bone angles
-    #feature_size = 213, #inhard_13 3D relative positions to hips
-    #feature_size = 504, #inhard_13 pose bone velocity
-    #feature_size = 144, # pv, pe(p)= 2 
-    #feature_size = 1296, # pe(p)= 6
-    #feature_size = 1728, # pe(p)= 8
-    #feature_size = 1080, # spacial pec(n=1)
-    #feature_size = 648, # spacial pec(n=0)
-    #feature_size =  1944, # spacial pec(n=2)
-    #feature_size = 63, # shape (None, 21, 3)
-    #feature_size = 216, # shape (None, 72, 3)
-    #feature_size = 21,
-    #feature_size = 504,
+    feature_size = 216, # shape (None, 72, 3)
     split_number = args.split,
     model_path = args.model_path,
     base_dir = args.base_dir,
     aug=1,
     lps=0)
 
-if args.dataset_name == "breakfast":
-    config.chunk_size = 10
-    config.max_frames_per_video = 1200
-    config.learning_rate = 1e-4
-    config.weight_decay = 3e-3
-    config.batch_size = 100
-    config.num_class = 48
-    config.back_gd = ['SIL']
-    config.ensem_weights = [1, 1, 1, 1, 0, 0]
-elif args.dataset_name == "epic":
-    config.chunk_size = 10 #window for feature augmentation
-    config.max_frames_per_video = 60000
-    config.learning_rate = 1e-4
-    config.weight_decay = 3e-3
-    config.batch_size = 20
-    config.num_class = 98
-    config.back_gd = ['BG']
-    config.ensem_weights = [1, 1, 1, 1, 0, 0]
-elif args.dataset_name == "InHARD":
-    config.chunk_size = 2 #window for feature augmentation
-    config.max_frames_per_video = 26524 
-    config.learning_rate = 1e-4 #---------------------------
-    config.weight_decay = 3e-3
-    config.batch_size = 15 #30 #100
-    config.num_class = 14 #12 
-    #config.back_gd = ['']
-    config.back_gd = ['No action']
-    config.ensem_weights = [1, 1, 1, 1, 0]
-elif args.dataset_name == "InHARD_3":
-    config.chunk_size = 2 #window for feature augmentation
-    config.max_frames_per_video = 26334 # 12774 
-    config.learning_rate = 1e-4 #---------------------------
-    config.weight_decay = 3e-3
-    config.batch_size = 25
-    config.num_class = 4
-    config.back_gd = ['No action']
-    config.ensem_weights = [1, 1, 1, 1, 0, 0]
-elif args.dataset_name == "InHARD_13":
-    config.warmup_steps = 5
-    config.fixed_epoch = 5
+if args.dataset_name == "InHARD_13":
     config.chunk_size = 2 # window for feature augmentation
     config.max_frames_per_video = 7360 #26342 #(inhard-4) #19330, (inhard-3) #12976,   #26342 (inhard-13) # 7361 
-    config.learning_rate = 1e-4 #0.001
-    config.weight_decay = 3e-3
-    config.batch_size = 5
-    config.num_class = 14 #4 #3 #14 (InHARD-13)
-    config.d_model = 21
-    #config.back_gd = ['']
-    config.back_gd = ['No action']
-    config.ensem_weights = [1, 1, 1, 1, 0]
-elif args.dataset_name == "InHARD_2D":
-    config.chunk_size = 2 # window for feature augmentation
-    config.max_frames_per_video = 7360 #26525
     config.learning_rate = 1e-4
     config.weight_decay = 3e-3
-    config.batch_size = 5 #32
-    config.num_class = 3
-    #config.back_gd = ['']
+    config.batch_size = 4
+    config.num_class = 14 #4 #3 #14 (InHARD-13)
     config.back_gd = ['No action']
     config.ensem_weights = [1, 1, 1, 1, 0]
-elif args.dataset_name == "IKEA-ASM":
-    config.d_model = 33
-    config.chunk_size = 2 # window for feature augmentation
-    config.max_frames_per_video = 993
-    config.learning_rate = 0.001 #1e-4
-    config.weight_decay = 3e-3
-    config.batch_size = 32 #32
-    config.num_class = 33
-    #config.back_gd = ['']
-    config.back_gd = ['NA']
-    config.ensem_weights = [1, 1, 1, 1, 0]
-elif args.dataset_name == "gtea":
-    config.chunk_size = 4
-    config.max_frames_per_video = 600
-    config.learning_rate = 5e-4
-    config.weight_decay = 3e-4
-    config.batch_size = 11
-    config.num_class = 11
-    config.back_gd = ['background']
-    config.ensem_weights = [1, 1, 1, 1, 0, 0]
-else: # args.dataset_name == "50salads":
-    config.chunk_size = 20
-    config.max_frames_per_video = 960
-    config.learning_rate = 3e-4
-    config.weight_decay = 1e-3
-    config.batch_size = 20
-    config.num_class = 19
-    config.back_gd = ['action_start', 'action_end']
-    config.ensem_weights = [1, 1, 1, 1, 0, 0]
 
 config.output_dir = config.base_dir + "results/supervised_C2FTCN/"
 if not os.path.exists(config.output_dir):
@@ -211,8 +110,7 @@ print("printing in output dir = ", config.output_dir)
 config.project_name="{}-split{}".format(config.dataset, config.split_number)
 config.train_split_file = config.base_dir + "splits/train.split{}.bundle".format(config.split_number)
 config.test_split_file = config.base_dir + "splits/validation.split{}.bundle".format(config.split_number)
-config.features_file_name = config.base_dir + "/features/inhard-13/30fps_p_light" 
-#"/features/inhard-13/30fps_pbv"
+config.features_file_name = config.base_dir + "/features/inhard-13/30fps_p"
 
 if args.ft_file is not None:
     config.features_file_name = os.path.join(config.base_dir, args.ft_file)
@@ -222,7 +120,6 @@ if args.ft_size is not None:
     config.feature_size = args.ft_size
     config.output_dir = config.output_dir + "_ft_size{}".format(args.ft_file)
  
-#config.ground_truth_files_dir = config.base_dir + "/groundTruth/" 
 config.ground_truth_files_dir = config.base_dir + "/groundTruth/bvh_30fps/" 
 config.label_id_csv = config.base_dir + 'mapping.csv'
 
@@ -257,34 +154,7 @@ def load_best_model(config):
 def load_avgbest_model(config):
     return torch.load(config.output_dir + '/avgbest_' + config.dataset + '_unet.wt')
 
-class CustomSchedule(_LRScheduler):
-    def __init__(self, optimizer, d_model=21, warmup_steps=5, last_epoch=-1):
-        self.d_model = d_model
-        self.d_model = torch.tensor(self.d_model, dtype=torch.float32)
-        self.warmup_steps = warmup_steps
-        super(CustomSchedule, self).__init__(optimizer, last_epoch)
-
-    def get_lr(self):
-        print('inside lr funct')
-        print('self.base_lrs: ',  self.base_lrs)
-        step = max(1, self.last_epoch + 1)  # avoid zero step
-        arg1 = step ** -0.5
-        arg2 = step * (self.warmup_steps ** -1.5)
-        scale = self.d_model ** -0.5 * min(arg1, arg2)
-
-         # Ensure `scale` is a float
-        if isinstance(scale, torch.Tensor):
-            scale = scale.item()
-
-        # Calculate the new learning rates as a list of scalars
-        new_lr = [base_lr * scale for base_lr in self.base_lrs]
-
-        # Convert tensors in `new_lr` to floats
-        new_lr_values = [lr.item() if isinstance(lr, torch.Tensor) else lr for lr in new_lr]
-        print('new_lr_values: ', new_lr_values)
-
-        return new_lr_values
-    
+   
 def make(config):
     # Make the data
     train, test = get_data(config, train=True), get_data(config, train=False)
@@ -299,13 +169,6 @@ def make(config):
 
     # Make the loss and optimizer
     criterion = get_criterion(config)
-    '''# Define your optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay,
-                                 betas=(0.9, 0.98), eps=1e-9
-                                 )
-    
-    # Assuming d_model is already defined
-    custom_scheduler = CustomSchedule(optimizer=optimizer, d_model=config.d_model)'''
 
     optimizer = torch.optim.Adam(
         model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
@@ -512,10 +375,6 @@ def train(model, loader, criterion, optimizer, scheduler, config, test_loader, p
         # Update the scheduler
         scheduler.step()
 
-        # Get the learning rate from the optimizer
-        '''current_lr = scheduler.get_lr()[0]
-        print(f"Learning Rate: {current_lr}")'''
-
             
             
             
@@ -541,15 +400,9 @@ def train(model, loader, criterion, optimizer, scheduler, config, test_loader, p
         print('-------------------------------------------------')
 
         
-
-        '''# If warmup is done, switch to the post-warmup scheduler
-        if epoch >= config.warmup_epochs:
-            post_warmup_scheduler.step()'''
-
-        
         # Check for early stopping
-        if no_improvement_epochs >= 400:
-            print(f"Early stopping triggered after {epoch+1} epochs due to no improvement in accuracy for 400 epochs.")
+        if no_improvement_epochs >= 100:
+            print(f"Early stopping triggered after {epoch+1} epochs due to no improvement in accuracy for 100 epochs.")
             break
 
 

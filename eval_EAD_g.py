@@ -19,7 +19,7 @@ from testtime_dataset_inHard_13 import AugmentDataset, collate_fn_override
 
 
 my_parser = argparse.ArgumentParser()
-my_parser.add_argument('--dataset_name', type=str, default="breakfast", choices=['breakfast', '50salads', 'gtea', 'epic', 'InHARD', 'InHARD_3', 'InHARD_13', 'InHARD_2D', 'IKEA-ASM_2D' ])
+my_parser.add_argument('--dataset_name', type=str, default="breakfast", choices=['InHARD_13', 'IKEA-ASM' ])
 my_parser.add_argument('--split', type=int, required=False, help="Comma seperated split number to run evaluation," + \
                                                                   "default = 1,2,3,4 for breakfast and gtea, 1,2,3,4,5 for 50salads")
 my_parser.add_argument('--cudad', type=str, default='0', help="Cuda device number to run evaluation program in")
@@ -30,7 +30,7 @@ my_parser.add_argument('--ensem_weights', type=str, required=False,
                         help='Default = \"1,1,1,1,0,0\", provide in similar format comma-seperated 6 weights values if required to be changed')
 my_parser.add_argument('--ft_file', type=str, required=False, help="Provide feature file dir path if default is not base_dir/features")
 my_parser.add_argument('--ft_size', type=int, required=False, help="Default = 2048 for the I3D features, change if feature size changes")
-my_parser.add_argument('--model_path', type=str, default='model_5')
+my_parser.add_argument('--model_path', type=str, default='model_5_ed_infoGcn_b_v2')
 my_parser.add_argument('--err_bar', type=int, required=False)
 my_parser.add_argument('--compile_result', action='store_true', help="To get results without test time augmentation use --compile_result")
 my_parser.add_argument('--num_workers', type=int, default=0, help="Number of workers to be used for data loading")
@@ -69,20 +69,7 @@ print(device)
 config = dotdict(
     epochs=500,
     dataset=args.dataset_name,
-    feature_size = 50, #inhard_13 orientation, pose light
-    #feature_size = 51,
-    #feature_size = 2048,
-    #feature_size = 2304, #epic
-    #feature_size = 66, #inhard_3 2D
-    #feature_size = 144, #inhard_13  (p or v)
-    #feature_size = 279, #inhard_13 3D positions + orientations
-    #feature_size = 72, #inhard_13 bone angles
-    #feature_size = 288, #inhard_13 pose + bone angles
-    #feature_size = 448, #inhard_13 3D positions backbone
-    #feature_size = 213, #inhard_13 3D relative positions to hips
-    #feature_size = 504, 
-    
-    #feature_size = 432, 
+    feature_size = 63, #inhard_13 orientation, pose light
     gamma=0.5,
     step_size=500,
     model_path=args.model_path,
@@ -93,77 +80,7 @@ config = dotdict(
 
 config.ensem_weights = [1, 1, 1, 1, 0]
 
-if args.dataset_name == "breakfast":
-    config.chunk_size = 10
-    config.max_frames_per_video = 1200
-    config.learning_rate = 1e-4
-    config.weight_decay = 3e-3
-    config.batch_size = 100
-    config.num_class = 48
-    config.back_gd = ['SIL']
-    config.split = [1, 2, 3, 4]
-    if not args.compile_result:
-        config.chunk_size = list(range(7, 16))
-        config.weights = np.ones(len(config.chunk_size))
-    else:
-        config.chunk_size = [10]
-        config.weights = [1]
-        config.eval_true = True
-
-elif args.dataset_name == "epic":
-    config.chunk_size = 10
-    config.max_frames_per_video = 60000
-    config.learning_rate = 1e-4
-    config.weight_decay = 3e-3
-    config.batch_size = 100
-    config.num_class = 98
-    config.back_gd = ['BG']
-    config.split = [1]
-    if not args.compile_result:
-        config.chunk_size = list(range(7, 16))
-        config.weights = np.ones(len(config.chunk_size))
-    else:
-        config.chunk_size = [10]
-        config.weights = [1]
-        config.eval_true = True
-
-elif args.dataset_name == "InHARD":
-    config.chunk_size = 3
-    config.max_frames_per_video = 26524 #19330 # 13005 #26524 #19330 # #26524 #9450  #5068 #14200
-    config.learning_rate = 1e-4
-    config.weight_decay = 3e-3
-    config.batch_size = 15 #30 #100
-    config.num_class = 4 #14 #12
-    #config.back_gd = ['']
-    config.back_gd = ['No action']
-    config.split = [1]
-    if not args.compile_result:
-        config.chunk_size = list(range(1, 10))
-        config.weights = np.ones(len(config.chunk_size))
-    else:
-        config.chunk_size = [2]
-        config.weights = [1]
-        config.eval_true = True
-
-elif args.dataset_name == "InHARD_3":
-    config.chunk_size = 2
-    config.max_frames_per_video = 26334 #12774
-    config.learning_rate = 1e-4
-    config.weight_decay = 3e-3
-    config.batch_size = 25
-    config.num_class = 4
-    #config.back_gd = ['']
-    config.back_gd = ['No action']
-    config.split = [1]
-    if not args.compile_result:
-        config.chunk_size = list(range(1, 10))
-        config.weights = np.ones(len(config.chunk_size))
-    else:
-        config.chunk_size = [2]
-        config.weights = [1]
-        config.eval_true = True
-
-elif args.dataset_name == "InHARD_13":
+if  args.dataset_name == "InHARD_13":
     config.chunk_size = 2
     config.max_frames_per_video = 7360 #26342 #19330 #(inhard-4) #13005 #(inhard-3)
     config.learning_rate = 1e-4
@@ -181,72 +98,20 @@ elif args.dataset_name == "InHARD_13":
         config.weights = [1]
         config.eval_true = True
 
-elif args.dataset_name == "InHARD_2D":
-    config.chunk_size = 2
-    config.max_frames_per_video = 7360 #19330 #13005
-    config.learning_rate = 1e-4
-    config.weight_decay = 3e-3
-    config.batch_size = 5 #32
-    config.num_class = 3
-    #config.back_gd = ['']
-    config.back_gd = ['No action']
-    config.split = [1]
-    if not args.compile_result:
-        config.chunk_size = list(range(1, 10))
-        config.weights = np.ones(len(config.chunk_size))
-    else:
-        config.chunk_size = [2]
-        config.weights = [1]
-        config.eval_true = True
-
-elif args.dataset_name == "IKEA-ASM_2D":
+elif args.dataset_name == "IKEA-ASM":
     config.chunk_size = 2
     config.max_frames_per_video = 993 #19330 #13005
-    config.learning_rate = 1e-4
+    config.learning_rate = 0.001
     config.weight_decay = 3e-3
-    config.batch_size = 5 #32
+    config.batch_size = 32
     config.num_class = 33
-    config.back_gd = ['']
-    #config.back_gd = ['NA']
+    config.back_gd = ['NA']
     config.split = [1]
     if not args.compile_result:
         config.chunk_size = list(range(1, 10))
         config.weights = np.ones(len(config.chunk_size))
     else:
         config.chunk_size = [2]
-        config.weights = [1]
-        config.eval_true = True
-
-elif args.dataset_name == "gtea":
-    config.chunk_size = 4
-    config.max_frames_per_video = 600
-    config.learning_rate = 4e-4
-    config.weight_decay = 3e-4
-    config.batch_size = 11
-    config.num_class = 11
-    config.back_gd = ['background']
-    config.split = [1, 2, 3, 4]
-    if not args.compile_result:
-        config.chunk_size = [3, 4, 5] # list(range(20,40))
-        config.weights = [1, 3, 1]
-    else:
-        config.chunk_size = [4]
-        config.weights = [1]
-
-else: # if args.dataset_name == "50salads":
-    config.chunk_size = 20
-    config.max_frames_per_video = 960
-    config.learning_rate = 3e-4
-    config.weight_decay = 1e-3
-    config.batch_size = 20
-    config.num_class = 19
-    config.back_gd = ['action_start', 'action_end']
-    config.split = [1, 2, 3, 4, 5]
-    if not args.compile_result:
-        config.chunk_size = list(range(20,40))
-        config.weights = np.ones(len(config.chunk_))
-    else:
-        config.chunk_size = [20]
         config.weights = [1]
         config.eval_true = True
 
@@ -258,8 +123,8 @@ if args.split is not None:
     except:
         config.split = args.split.split(',')
 
-config.features_file_name = config.base_dir + "/features/25fps_p_up_2D" #"/features/inhard-13/30fps_p_light" #"/features/inhard-13/30fps_p/"
-config.ground_truth_files_dir = config.base_dir + "/groundTruth/"  #"/groundTruth/bvh_30fps/"
+config.features_file_name = config.base_dir + "/features/inhard-13/30fps_p_light" #"/features/inhard-13/30fps_p/"
+config.ground_truth_files_dir = config.base_dir + "/groundTruth/bvh_30fps/"
 config.label_id_csv = config.base_dir + 'mapping.csv'
 
 
@@ -374,7 +239,7 @@ def make(config):
 
     # Make the model
     model = get_model(config).to(device)
-    print(model)
+    #print(model)
     
     num_params = sum([p.numel() for p in model.parameters()])
     print("Number of parameters = ", num_params/1e6, " million")

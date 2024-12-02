@@ -7,7 +7,7 @@ import numpy as np
 class PostProcess(nn.Module):
     def __init__(self, args):
         super().__init__()
-        df_labels = pd.read_csv(args.label_id_csv)
+        df_labels = pd.read_csv(args.label_id_csv, keep_default_na=False)
         
         self.labels_dict_id2name = {}
         self.labels_dict_name2id = {}

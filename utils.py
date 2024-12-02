@@ -107,7 +107,13 @@ def recog_file(filename, ground_truth_path, overlap, background_class_list):
         f.close()
 
     n_frame_correct = 0
-    for i in range(len(recog_content)):
+    #print(filename)
+    #print('pred: ', len(recog_content))
+    #print('gt: ', len(gt_content))
+    s =min(len(recog_content), len(gt_content))
+    #print(s)
+    for i in range(s):
+        
         if recog_content[i] == gt_content[i]:
             n_frame_correct += 1
 

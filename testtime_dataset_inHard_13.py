@@ -39,14 +39,15 @@ class AugmentDataset(torch.utils.data.Dataset):
         
         
     def make_data_set(self, fold_file_name):  # Longer Videos 10 -- max_chunk_size # Shorter Videos = min(chunk size) - max
-        df=pd.read_csv(self.args.label_id_csv)
+        df=pd.read_csv(self.args.label_id_csv, keep_default_na=False)
         label_id_to_label_name = {}
         label_name_to_label_id_dict = {}
         for i, ele in df.iterrows():
             label_id_to_label_name[ele.label_id] = ele.label_name
             label_name_to_label_id_dict[ele.label_name] = ele.label_id
 
-        data = open(fold_file_name).read().split("\n")[:-1]
+        #data = open(fold_file_name).read().split("\n")[:-1]
+        data = open(fold_file_name).read().split("\n")
         data_arr = []
         num_video_not_found = 0
         

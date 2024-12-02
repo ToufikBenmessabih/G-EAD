@@ -14,7 +14,7 @@ from utils import calculate_mof
 from postprocess import PostProcess
 import torch.nn.functional as F
 from dataset_inHard_13 import AugmentDataset, collate_fn_override
-import torch
+import wandb
 from torch.optim.lr_scheduler import _LRScheduler
 torch.autograd.set_detect_anomaly(True)
 
@@ -22,11 +22,11 @@ seed = 42
 
 
 my_parser = argparse.ArgumentParser()
-my_parser.add_argument('--dataset_name', type=str, default="breakfast", choices=['breakfast', '50salads', 'gtea', 'epic', 'InHARD', 'InHARD_3', 'InHARD_13', 'InHARD_2D', 'IKEA-ASM'])
+my_parser.add_argument('--dataset_name', type=str, default="breakfast", choices=['InHARD_13', 'InHARD_2D'])
 my_parser.add_argument('--split', type=int, required=True, help="Split number of the dataset")
 my_parser.add_argument('--cudad', type=str, default='0', help="Cuda device number to run the program")
 my_parser.add_argument('--base_dir', type=str, help="Base directory containing groundTruth, features, splits, results directory of dataset")
-my_parser.add_argument('--model_path', type=str, default='model_5_stgcn')
+my_parser.add_argument('--model_path', type=str, default='model_5_ed_infoGcn_b_dfp')
 my_parser.add_argument('--wd', type=float, required=False, help="Provide weigth decay if you want to change from default")
 my_parser.add_argument('--lr', type=float, required=False, help="Provide learning rate if you want to change from default")
 my_parser.add_argument('--chunk_size', type=int, required=False, help="Provide chunk size to be used if you want to change from default")
@@ -38,7 +38,6 @@ my_parser.add_argument('--err_bar', type=int, required=False)
 my_parser.add_argument('--num_workers', type=int, default=0, help="Number of workers to be used for data loading")
 my_parser.add_argument('--out_dir', required=False, help="Directory where output(checkpoints, logs, results) is to be dumped")
 args = my_parser.parse_args()
-
 
 if args.err_bar:
     seed = args.err_bar #np.random.randint(0, 999999)
@@ -60,128 +59,31 @@ print('is cuda available ?: ', torch.cuda.is_available())
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print('device: ', device)
 
-#device = torch.device("cpu")
-
 config = dotdict(
     epochs = 500,
     dataset = args.dataset_name,
-    #feature_size = 504, #inhard_13 pose light(21) mtm3
-    #feature_size = 51, #inhard_3
-    #feature_size = 2048, #inhard
-    #feature_size = 2304, #epic
-    feature_size =  63, #31, inhard_13 2D, IKEA 2D
-    #feature_size = 216, #inhard_13 3D positions OR velocity
-    #feature_size = 279, #inhard_13 3D positions + orientations
-    #feature_size = 448, #inhard_13 3D positions backbone
-    #feature_size = 72, #inhard_13 bone angles
-    #feature_size = 288, #inhard_13 pose + bone angles
-    #feature_size = 213, #inhard_13 3D relative positions to hips
-    #feature_size = 504, #inhard_13 pose bone velocity
-    #feature_size = 144, # pv, pe(p)= 2 
-    #feature_size = 1296, # pe(p)= 6
-    #feature_size = 1728, # pe(p)= 8
-    #feature_size = 1080, # spacial pec(n=1)
-    #feature_size = 648, # spacial pec(n=0)
-    #feature_size =  1944, # spacial pec(n=2)
-    #feature_size = 63, # shape (None, 21, 3)
+    feature_size = 63, # shape (None, 21, 3)
     #feature_size = 216, # shape (None, 72, 3)
-    #feature_size = 21,
-    #feature_size = 504,
+    gamma = 0.5,
+    step_size = 500,
     split_number = args.split,
     model_path = args.model_path,
     base_dir = args.base_dir,
     aug=1,
     lps=0)
 
-if args.dataset_name == "breakfast":
-    config.chunk_size = 10
-    config.max_frames_per_video = 1200
-    config.learning_rate = 1e-4
-    config.weight_decay = 3e-3
-    config.batch_size = 100
-    config.num_class = 48
-    config.back_gd = ['SIL']
-    config.ensem_weights = [1, 1, 1, 1, 0, 0]
-elif args.dataset_name == "epic":
-    config.chunk_size = 10 #window for feature augmentation
-    config.max_frames_per_video = 60000
-    config.learning_rate = 1e-4
-    config.weight_decay = 3e-3
-    config.batch_size = 20
-    config.num_class = 98
-    config.back_gd = ['BG']
-    config.ensem_weights = [1, 1, 1, 1, 0, 0]
-elif args.dataset_name == "InHARD":
-    config.chunk_size = 2 #window for feature augmentation
-    config.max_frames_per_video = 26524 
-    config.learning_rate = 1e-4 #---------------------------
-    config.weight_decay = 3e-3
-    config.batch_size = 15 #30 #100
-    config.num_class = 14 #12 
-    #config.back_gd = ['']
-    config.back_gd = ['No action']
-    config.ensem_weights = [1, 1, 1, 1, 0]
-elif args.dataset_name == "InHARD_3":
-    config.chunk_size = 2 #window for feature augmentation
-    config.max_frames_per_video = 26334 # 12774 
-    config.learning_rate = 1e-4 #---------------------------
-    config.weight_decay = 3e-3
-    config.batch_size = 25
-    config.num_class = 4
-    config.back_gd = ['No action']
-    config.ensem_weights = [1, 1, 1, 1, 0, 0]
-elif args.dataset_name == "InHARD_13":
+if args.dataset_name == "InHARD_13":
     config.warmup_steps = 5
     config.fixed_epoch = 5
+    config.d_model = 21
     config.chunk_size = 2 # window for feature augmentation
-    config.max_frames_per_video = 7360 #26342 #(inhard-4) #19330, (inhard-3) #12976,   #26342 (inhard-13) # 7361 
-    config.learning_rate = 1e-4 #0.001
+    config.max_frames_per_video = 7360
+    config.learning_rate =  0.001 #1e-4
     config.weight_decay = 3e-3
     config.batch_size = 5
-    config.num_class = 14 #4 #3 #14 (InHARD-13)
-    config.d_model = 21
-    #config.back_gd = ['']
+    config.num_class = 14
     config.back_gd = ['No action']
     config.ensem_weights = [1, 1, 1, 1, 0]
-elif args.dataset_name == "InHARD_2D":
-    config.chunk_size = 2 # window for feature augmentation
-    config.max_frames_per_video = 7360 #26525
-    config.learning_rate = 1e-4
-    config.weight_decay = 3e-3
-    config.batch_size = 5 #32
-    config.num_class = 3
-    #config.back_gd = ['']
-    config.back_gd = ['No action']
-    config.ensem_weights = [1, 1, 1, 1, 0]
-elif args.dataset_name == "IKEA-ASM":
-    config.d_model = 33
-    config.chunk_size = 2 # window for feature augmentation
-    config.max_frames_per_video = 993
-    config.learning_rate = 0.001 #1e-4
-    config.weight_decay = 3e-3
-    config.batch_size = 32 #32
-    config.num_class = 33
-    #config.back_gd = ['']
-    config.back_gd = ['NA']
-    config.ensem_weights = [1, 1, 1, 1, 0]
-elif args.dataset_name == "gtea":
-    config.chunk_size = 4
-    config.max_frames_per_video = 600
-    config.learning_rate = 5e-4
-    config.weight_decay = 3e-4
-    config.batch_size = 11
-    config.num_class = 11
-    config.back_gd = ['background']
-    config.ensem_weights = [1, 1, 1, 1, 0, 0]
-else: # args.dataset_name == "50salads":
-    config.chunk_size = 20
-    config.max_frames_per_video = 960
-    config.learning_rate = 3e-4
-    config.weight_decay = 1e-3
-    config.batch_size = 20
-    config.num_class = 19
-    config.back_gd = ['action_start', 'action_end']
-    config.ensem_weights = [1, 1, 1, 1, 0, 0]
 
 config.output_dir = config.base_dir + "results/supervised_C2FTCN/"
 if not os.path.exists(config.output_dir):
@@ -211,8 +113,7 @@ print("printing in output dir = ", config.output_dir)
 config.project_name="{}-split{}".format(config.dataset, config.split_number)
 config.train_split_file = config.base_dir + "splits/train.split{}.bundle".format(config.split_number)
 config.test_split_file = config.base_dir + "splits/validation.split{}.bundle".format(config.split_number)
-config.features_file_name = config.base_dir + "/features/inhard-13/30fps_p_light" 
-#"/features/inhard-13/30fps_pbv"
+config.features_file_name = config.base_dir + "/features/inhard-13/30fps_p_light/"
 
 if args.ft_file is not None:
     config.features_file_name = os.path.join(config.base_dir, args.ft_file)
@@ -222,8 +123,7 @@ if args.ft_size is not None:
     config.feature_size = args.ft_size
     config.output_dir = config.output_dir + "_ft_size{}".format(args.ft_file)
  
-#config.ground_truth_files_dir = config.base_dir + "/groundTruth/" 
-config.ground_truth_files_dir = config.base_dir + "/groundTruth/bvh_30fps/" 
+config.ground_truth_files_dir = config.base_dir + "/groundTruth/bvh_30fps/"
 config.label_id_csv = config.base_dir + 'mapping.csv'
 
 config.output_dir = config.output_dir + "/"
@@ -284,7 +184,7 @@ class CustomSchedule(_LRScheduler):
         print('new_lr_values: ', new_lr_values)
 
         return new_lr_values
-    
+ 
 def make(config):
     # Make the data
     train, test = get_data(config, train=True), get_data(config, train=False)
@@ -299,107 +199,40 @@ def make(config):
 
     # Make the loss and optimizer
     criterion = get_criterion(config)
-    '''# Define your optimizer
+    # Define your optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay,
                                  betas=(0.9, 0.98), eps=1e-9
                                  )
     
     # Assuming d_model is already defined
-    custom_scheduler = CustomSchedule(optimizer=optimizer, d_model=config.d_model)'''
+    custom_scheduler = CustomSchedule(optimizer=optimizer, d_model=config.d_model)
 
-    optimizer = torch.optim.Adam(
-        model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
-    custom_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
-    
-    
     # postprocessor declaration
     postprocessor = PostProcess(config)
     postprocessor = postprocessor.to(device)
     
     return model, train_loader, test_loader, criterion, optimizer, custom_scheduler, postprocessor
 
-
-class LabelSmoothingCrossEntropy(nn.Module):
-    def __init__(self, smoothing=0.1, class_weights=None, ignore_index=-100):
-        super(LabelSmoothingCrossEntropy, self).__init__()
-        self.smoothing = smoothing
-        self.confidence = 1.0 - smoothing
-        self.class_weights = class_weights
-        self.ignore_index = ignore_index
-
-    def forward(self, output, target):
-        device = output.device
-
-        # Output: [batch_size, num_classes, seq_length] -> [batch_size, seq_length, num_classes]
-        output = output.permute(0, 2, 1)  # Now [batch_size, seq_length, num_classes]
-
-        # Target: [batch_size, seq_length] -> [batch_size, seq_length, 1]
-        target = target.unsqueeze(-1).to(device)  # Now [batch_size, seq_length, 1]
-
-        num_classes = output.size(-1)
-        assert target.max() < num_classes, "Target contains indices out of bounds"
-
-        # Create smoothed labels on the same device
-        true_dist = torch.full_like(output, self.smoothing / (num_classes - 1), device=device)
-        ignore_mask = (target == self.ignore_index).float()
-
-        try:
-            true_dist.scatter_(2, target, self.confidence)
-        except RuntimeError as e:
-            print("Error in scatter operation:", e)
-            print("Target values:", target.flatten())
-            print("true_dist shape:", true_dist.shape)
-            print("num_classes:", num_classes)
-            raise
-
-        # Zero out the true_dist for ignored indices
-        true_dist = true_dist * (1 - ignore_mask)
-
-        if self.class_weights is not None:
-            class_weights = self.class_weights.unsqueeze(0).unsqueeze(1).to(device)  # [1, 1, num_classes]
-            output = output * class_weights  # Apply class weights to logits
-
-        # Compute loss
-        loss = -true_dist * F.log_softmax(output, dim=-1)
-        loss = torch.sum(loss, dim=-1)
-        loss = loss * (1 - ignore_mask.squeeze(-1))  # Zero out loss for ignored indices
-        loss = torch.sum(loss) / (torch.sum(1 - ignore_mask) + 1e-10)  # Normalize by the number of non-ignored tokens
-
-        return loss
-
-
 class CriterionClass(nn.Module):
     def __init__(self, config):
         super().__init__()
-        #Class-specific weights (you can adjust these according to your requirements)
+        # Class-specific weights (you can adjust these according to your requirements)
         class_weights = torch.tensor([1.0, 20.0, 7.0, 6.0, 7.0, 5.0, 3.0, 39.0, 44.0, 8.0, 25.0, 1.0, 47.0, 13.0]) # 14 actions
-        #class_weights = torch.tensor([1.0, 7.0, 6.0, 7.0, 5.0, 3.0, 39.0, 44.0, 8.0, 25.0, 1.0, 47.0, 13.0])
-        #class_weights = torch.tensor([1.0, 5.0, 4.0, 1.0]) # inhard-4
-        #class_weights = torch.tensor([1.0, 5.0, 2.0, 1.0]) # mtm 4
-        #class_weights = torch.tensor([5.0, 2.0, 1.0]) # inhard-3
-
-        #IKEA ASM 33 actions HCS
-        #class_weights = torch.tensor([3.0, 11.0, 29.0, 19.0, 26.0, 6.0, 410.0, 10.0, 46.0, 38.0, 1662.0, 321.0, 889.0, 664.0, 409.0, 2545.0, 848.0, 35.0, 107.0, 85.0, 270.0, 10.0, 86.0, 24.0, 46.0, 402.0, 84.0, 723.0, 1204.0, 33.0, 25.0, 1.0, 14.0])
 
         '''class_weights = torch.tensor([0.0205118, 0.4130183, 0.148845, 0.1303033, 0.1341922, 0.1060895, 
                                       0.0702484, 0.7961783, 0.9090909, 0.1573812, 0.5062778, 0.0200329, 
                                       0.9619084, 0.2701826])'''
 
-        # Initialize Label Smoothing Cross Entropy Loss
-        #self.ce = LabelSmoothingCrossEntropy(smoothing=0.1, class_weights=class_weights.to(device), ignore_index=-100)
-        
         self.ce = nn.CrossEntropyLoss(ignore_index=-100, weight=class_weights.to(device))  # Frame wise cross entropy loss
         #self.ce = nn.CrossEntropyLoss(ignore_index=-100)
         self.mse = nn.MSELoss(reduction='none')           # Migitating transistion loss 
     
     def forward(self, outp, labels, src_mask, labels_present):
-
-        outp_wo_softmax = torch.log(outp + 1e-10).to(device)       # log is necessary because ensemble gives softmax output
+        outp_wo_softmax = torch.log(outp + 1e-10)         # log is necessary because ensemble gives softmax output
         labels = labels.to(device)
         print(device)
 
-
-        ce_loss = self.ce(outp_wo_softmax, labels)      
+        ce_loss = self.ce(outp_wo_softmax, labels)        
         
         mse_loss = 0.15 * torch.mean(torch.clamp(self.mse(outp_wo_softmax[:, :, 1:],
                                                           outp_wo_softmax.detach()[:, :, :-1]), 
@@ -481,8 +314,7 @@ def train(model, loader, criterion, optimizer, scheduler, config, test_loader, p
             outputs_list = model(samples)
 
             outputs_ensemble = get_c2f_ensemble_output(outputs_list, config.ensem_weights)
-
-
+            
             try:
                 # Ensure outputs and labels are finite
                 if not torch.isfinite(outputs_ensemble).all():
@@ -504,22 +336,10 @@ def train(model, loader, criterion, optimizer, scheduler, config, test_loader, p
 
             except Exception as e:
                 print(f"Error during training: {e}")
-
+            
             if i % 10 == 0:
                 end = time.time()
                 print(f"Train loss after {epoch} epochs, time: {end - start}, {i} iterations is {loss_dict['full_loss']:.3f}")
-            
-        # Update the scheduler
-        scheduler.step()
-
-        # Get the learning rate from the optimizer
-        '''current_lr = scheduler.get_lr()[0]
-        print(f"Learning Rate: {current_lr}")'''
-
-            
-            
-            
-            
 
         acc, avg_score = test(model, test_loader, criterion, postprocessor, config, epoch, '')
         if avg_score > avg_best_acc:
@@ -535,21 +355,13 @@ def train(model, loader, criterion, optimizer, scheduler, config, test_loader, p
         torch.save(model.state_dict(), config.output_dir + '/last_' + config.dataset + '_unet.wt')
         accs.append(acc)
         accs.sort(reverse=True)
-
-        
+        scheduler.step()
         print(f'Validation best accuracies till now -> {" ".join(["%.2f"%item for item in accs[:3]])}')
         print('-------------------------------------------------')
 
-        
-
-        '''# If warmup is done, switch to the post-warmup scheduler
-        if epoch >= config.warmup_epochs:
-            post_warmup_scheduler.step()'''
-
-        
         # Check for early stopping
-        if no_improvement_epochs >= 400:
-            print(f"Early stopping triggered after {epoch+1} epochs due to no improvement in accuracy for 400 epochs.")
+        if no_improvement_epochs >= 50:
+            print(f"Early stopping triggered after {epoch+1} epochs due to no improvement in accuracy for 50 epochs.")
             break
 
 
@@ -616,7 +428,6 @@ import time
 
 start_time = time.time()
 model = model_pipeline(config)
-
 end_time = time.time()
 
 duration = (end_time - start_time) / 60

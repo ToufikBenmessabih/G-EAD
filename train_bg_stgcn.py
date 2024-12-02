@@ -65,91 +65,20 @@ print('device: ', device)
 config = dotdict(
     epochs = 500,
     dataset = args.dataset_name,
-    #feature_size = 504, #inhard_13 pose light(21) mtm3
-    #feature_size = 51, #inhard_3
-    #feature_size = 2048, #inhard
-    #feature_size = 2304, #epic
     feature_size =  63, #31, inhard_13 2D, IKEA 2D
-    #feature_size = 216, #inhard_13 3D positions OR velocity
-    #feature_size = 279, #inhard_13 3D positions + orientations
-    #feature_size = 448, #inhard_13 3D positions backbone
-    #feature_size = 72, #inhard_13 bone angles
-    #feature_size = 288, #inhard_13 pose + bone angles
-    #feature_size = 213, #inhard_13 3D relative positions to hips
-    #feature_size = 504, #inhard_13 pose bone velocity
-    #feature_size = 144, # pv, pe(p)= 2 
-    #feature_size = 1296, # pe(p)= 6
-    #feature_size = 1728, # pe(p)= 8
-    #feature_size = 1080, # spacial pec(n=1)
-    #feature_size = 648, # spacial pec(n=0)
-    #feature_size =  1944, # spacial pec(n=2)
-    #feature_size = 63, # shape (None, 21, 3)
-    #feature_size = 216, # shape (None, 72, 3)
-    #feature_size = 21,
-    #feature_size = 504,
     split_number = args.split,
     model_path = args.model_path,
     base_dir = args.base_dir,
     aug=1,
     lps=0)
 
-if args.dataset_name == "breakfast":
-    config.chunk_size = 10
-    config.max_frames_per_video = 1200
-    config.learning_rate = 1e-4
-    config.weight_decay = 3e-3
-    config.batch_size = 100
-    config.num_class = 48
-    config.back_gd = ['SIL']
-    config.ensem_weights = [1, 1, 1, 1, 0, 0]
-elif args.dataset_name == "epic":
-    config.chunk_size = 10 #window for feature augmentation
-    config.max_frames_per_video = 60000
-    config.learning_rate = 1e-4
-    config.weight_decay = 3e-3
-    config.batch_size = 20
-    config.num_class = 98
-    config.back_gd = ['BG']
-    config.ensem_weights = [1, 1, 1, 1, 0, 0]
-elif args.dataset_name == "InHARD":
-    config.chunk_size = 2 #window for feature augmentation
-    config.max_frames_per_video = 26524 
-    config.learning_rate = 1e-4 #---------------------------
-    config.weight_decay = 3e-3
-    config.batch_size = 15 #30 #100
-    config.num_class = 14 #12 
-    #config.back_gd = ['']
-    config.back_gd = ['No action']
-    config.ensem_weights = [1, 1, 1, 1, 0]
-elif args.dataset_name == "InHARD_3":
-    config.chunk_size = 2 #window for feature augmentation
-    config.max_frames_per_video = 26334 # 12774 
-    config.learning_rate = 1e-4 #---------------------------
-    config.weight_decay = 3e-3
-    config.batch_size = 25
-    config.num_class = 4
-    config.back_gd = ['No action']
-    config.ensem_weights = [1, 1, 1, 1, 0, 0]
-elif args.dataset_name == "InHARD_13":
-    config.warmup_steps = 5
-    config.fixed_epoch = 5
+if args.dataset_name == "InHARD_13":
     config.chunk_size = 2 # window for feature augmentation
     config.max_frames_per_video = 7360 #26342 #(inhard-4) #19330, (inhard-3) #12976,   #26342 (inhard-13) # 7361 
     config.learning_rate = 1e-4 #0.001
     config.weight_decay = 3e-3
     config.batch_size = 5
     config.num_class = 14 #4 #3 #14 (InHARD-13)
-    config.d_model = 21
-    #config.back_gd = ['']
-    config.back_gd = ['No action']
-    config.ensem_weights = [1, 1, 1, 1, 0]
-elif args.dataset_name == "InHARD_2D":
-    config.chunk_size = 2 # window for feature augmentation
-    config.max_frames_per_video = 7360 #26525
-    config.learning_rate = 1e-4
-    config.weight_decay = 3e-3
-    config.batch_size = 5 #32
-    config.num_class = 3
     #config.back_gd = ['']
     config.back_gd = ['No action']
     config.ensem_weights = [1, 1, 1, 1, 0]
@@ -163,25 +92,6 @@ elif args.dataset_name == "IKEA-ASM":
     config.num_class = 33
     #config.back_gd = ['']
     config.back_gd = ['NA']
-    config.ensem_weights = [1, 1, 1, 1, 0]
-elif args.dataset_name == "gtea":
-    config.chunk_size = 4
-    config.max_frames_per_video = 600
-    config.learning_rate = 5e-4
-    config.weight_decay = 3e-4
-    config.batch_size = 11
-    config.num_class = 11
-    config.back_gd = ['background']
-    config.ensem_weights = [1, 1, 1, 1, 0, 0]
-else: # args.dataset_name == "50salads":
-    config.chunk_size = 20
-    config.max_frames_per_video = 960
-    config.learning_rate = 3e-4
-    config.weight_decay = 1e-3
-    config.batch_size = 20
-    config.num_class = 19
-    config.back_gd = ['action_start', 'action_end']
-    config.ensem_weights = [1, 1, 1, 1, 0, 0]
 
 config.output_dir = config.base_dir + "results/supervised_C2FTCN/"
 if not os.path.exists(config.output_dir):
@@ -205,6 +115,7 @@ if args.ensem_weights is not None:
     config.output_dir=config.output_dir + "_wts{}".format(args.ensem_weights.replace(',','-'))
     config.ensem_weights = list(map(int, args.ensem_weights.split(",")))
     print("C2F Ensemble Weights being used is ", config.ensem_weights)
+
 
 
 print("printing in output dir = ", config.output_dir)
@@ -257,34 +168,6 @@ def load_best_model(config):
 def load_avgbest_model(config):
     return torch.load(config.output_dir + '/avgbest_' + config.dataset + '_unet.wt')
 
-class CustomSchedule(_LRScheduler):
-    def __init__(self, optimizer, d_model=21, warmup_steps=5, last_epoch=-1):
-        self.d_model = d_model
-        self.d_model = torch.tensor(self.d_model, dtype=torch.float32)
-        self.warmup_steps = warmup_steps
-        super(CustomSchedule, self).__init__(optimizer, last_epoch)
-
-    def get_lr(self):
-        print('inside lr funct')
-        print('self.base_lrs: ',  self.base_lrs)
-        step = max(1, self.last_epoch + 1)  # avoid zero step
-        arg1 = step ** -0.5
-        arg2 = step * (self.warmup_steps ** -1.5)
-        scale = self.d_model ** -0.5 * min(arg1, arg2)
-
-         # Ensure `scale` is a float
-        if isinstance(scale, torch.Tensor):
-            scale = scale.item()
-
-        # Calculate the new learning rates as a list of scalars
-        new_lr = [base_lr * scale for base_lr in self.base_lrs]
-
-        # Convert tensors in `new_lr` to floats
-        new_lr_values = [lr.item() if isinstance(lr, torch.Tensor) else lr for lr in new_lr]
-        print('new_lr_values: ', new_lr_values)
-
-        return new_lr_values
-    
 def make(config):
     # Make the data
     train, test = get_data(config, train=True), get_data(config, train=False)
@@ -299,13 +182,7 @@ def make(config):
 
     # Make the loss and optimizer
     criterion = get_criterion(config)
-    '''# Define your optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay,
-                                 betas=(0.9, 0.98), eps=1e-9
-                                 )
-    
-    # Assuming d_model is already defined
-    custom_scheduler = CustomSchedule(optimizer=optimizer, d_model=config.d_model)'''
+    # Define your optimizer
 
     optimizer = torch.optim.Adam(
         model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
@@ -319,55 +196,6 @@ def make(config):
     return model, train_loader, test_loader, criterion, optimizer, custom_scheduler, postprocessor
 
 
-class LabelSmoothingCrossEntropy(nn.Module):
-    def __init__(self, smoothing=0.1, class_weights=None, ignore_index=-100):
-        super(LabelSmoothingCrossEntropy, self).__init__()
-        self.smoothing = smoothing
-        self.confidence = 1.0 - smoothing
-        self.class_weights = class_weights
-        self.ignore_index = ignore_index
-
-    def forward(self, output, target):
-        device = output.device
-
-        # Output: [batch_size, num_classes, seq_length] -> [batch_size, seq_length, num_classes]
-        output = output.permute(0, 2, 1)  # Now [batch_size, seq_length, num_classes]
-
-        # Target: [batch_size, seq_length] -> [batch_size, seq_length, 1]
-        target = target.unsqueeze(-1).to(device)  # Now [batch_size, seq_length, 1]
-
-        num_classes = output.size(-1)
-        assert target.max() < num_classes, "Target contains indices out of bounds"
-
-        # Create smoothed labels on the same device
-        true_dist = torch.full_like(output, self.smoothing / (num_classes - 1), device=device)
-        ignore_mask = (target == self.ignore_index).float()
-
-        try:
-            true_dist.scatter_(2, target, self.confidence)
-        except RuntimeError as e:
-            print("Error in scatter operation:", e)
-            print("Target values:", target.flatten())
-            print("true_dist shape:", true_dist.shape)
-            print("num_classes:", num_classes)
-            raise
-
-        # Zero out the true_dist for ignored indices
-        true_dist = true_dist * (1 - ignore_mask)
-
-        if self.class_weights is not None:
-            class_weights = self.class_weights.unsqueeze(0).unsqueeze(1).to(device)  # [1, 1, num_classes]
-            output = output * class_weights  # Apply class weights to logits
-
-        # Compute loss
-        loss = -true_dist * F.log_softmax(output, dim=-1)
-        loss = torch.sum(loss, dim=-1)
-        loss = loss * (1 - ignore_mask.squeeze(-1))  # Zero out loss for ignored indices
-        loss = torch.sum(loss) / (torch.sum(1 - ignore_mask) + 1e-10)  # Normalize by the number of non-ignored tokens
-
-        return loss
-
-
 class CriterionClass(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -375,7 +203,6 @@ class CriterionClass(nn.Module):
         class_weights = torch.tensor([1.0, 20.0, 7.0, 6.0, 7.0, 5.0, 3.0, 39.0, 44.0, 8.0, 25.0, 1.0, 47.0, 13.0]) # 14 actions
         #class_weights = torch.tensor([1.0, 7.0, 6.0, 7.0, 5.0, 3.0, 39.0, 44.0, 8.0, 25.0, 1.0, 47.0, 13.0])
         #class_weights = torch.tensor([1.0, 5.0, 4.0, 1.0]) # inhard-4
-        #class_weights = torch.tensor([1.0, 5.0, 2.0, 1.0]) # mtm 4
         #class_weights = torch.tensor([5.0, 2.0, 1.0]) # inhard-3
 
         #IKEA ASM 33 actions HCS
@@ -385,9 +212,6 @@ class CriterionClass(nn.Module):
                                       0.0702484, 0.7961783, 0.9090909, 0.1573812, 0.5062778, 0.0200329, 
                                       0.9619084, 0.2701826])'''
 
-        # Initialize Label Smoothing Cross Entropy Loss
-        #self.ce = LabelSmoothingCrossEntropy(smoothing=0.1, class_weights=class_weights.to(device), ignore_index=-100)
-        
         self.ce = nn.CrossEntropyLoss(ignore_index=-100, weight=class_weights.to(device))  # Frame wise cross entropy loss
         #self.ce = nn.CrossEntropyLoss(ignore_index=-100)
         self.mse = nn.MSELoss(reduction='none')           # Migitating transistion loss 

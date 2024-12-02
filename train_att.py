@@ -15,18 +15,17 @@ from postprocess import PostProcess
 import torch.nn.functional as F
 from dataset_inHard_13 import AugmentDataset, collate_fn_override
 import torch
-from torch.optim.lr_scheduler import _LRScheduler
 torch.autograd.set_detect_anomaly(True)
 
 seed = 42
 
 
 my_parser = argparse.ArgumentParser()
-my_parser.add_argument('--dataset_name', type=str, default="breakfast", choices=['breakfast', '50salads', 'gtea', 'epic', 'InHARD', 'InHARD_3', 'InHARD_13', 'InHARD_2D', 'IKEA-ASM'])
+my_parser.add_argument('--dataset_name', type=str, default="breakfast", choices=['breakfast', '50salads', 'gtea', 'epic', 'InHARD', 'InHARD_3', 'InHARD_13', 'InHARD_2D', 'IKEA-ASM_2D'])
 my_parser.add_argument('--split', type=int, required=True, help="Split number of the dataset")
 my_parser.add_argument('--cudad', type=str, default='0', help="Cuda device number to run the program")
 my_parser.add_argument('--base_dir', type=str, help="Base directory containing groundTruth, features, splits, results directory of dataset")
-my_parser.add_argument('--model_path', type=str, default='model_5_stgcn')
+my_parser.add_argument('--model_path', type=str, default='model_5_ed_stgat')
 my_parser.add_argument('--wd', type=float, required=False, help="Provide weigth decay if you want to change from default")
 my_parser.add_argument('--lr', type=float, required=False, help="Provide learning rate if you want to change from default")
 my_parser.add_argument('--chunk_size', type=int, required=False, help="Provide chunk size to be used if you want to change from default")
@@ -65,11 +64,11 @@ print('device: ', device)
 config = dotdict(
     epochs = 500,
     dataset = args.dataset_name,
-    #feature_size = 504, #inhard_13 pose light(21) mtm3
+    #feature_size = 63, #inhard_13 pose light(21) mtm3
     #feature_size = 51, #inhard_3
     #feature_size = 2048, #inhard
     #feature_size = 2304, #epic
-    feature_size =  63, #31, inhard_13 2D, IKEA 2D
+    #feature_size = 31,# 66, #inhard_13 2D, IKEA 2D
     #feature_size = 216, #inhard_13 3D positions OR velocity
     #feature_size = 279, #inhard_13 3D positions + orientations
     #feature_size = 448, #inhard_13 3D positions backbone
@@ -83,10 +82,11 @@ config = dotdict(
     #feature_size = 1080, # spacial pec(n=1)
     #feature_size = 648, # spacial pec(n=0)
     #feature_size =  1944, # spacial pec(n=2)
-    #feature_size = 63, # shape (None, 21, 3)
-    #feature_size = 216, # shape (None, 72, 3)
+    feature_size = 63, # shape (None, 21, 3)
     #feature_size = 21,
     #feature_size = 504,
+    gamma = 0.5,
+    step_size = 500,
     split_number = args.split,
     model_path = args.model_path,
     base_dir = args.base_dir,
@@ -131,15 +131,12 @@ elif args.dataset_name == "InHARD_3":
     config.back_gd = ['No action']
     config.ensem_weights = [1, 1, 1, 1, 0, 0]
 elif args.dataset_name == "InHARD_13":
-    config.warmup_steps = 5
-    config.fixed_epoch = 5
     config.chunk_size = 2 # window for feature augmentation
     config.max_frames_per_video = 7360 #26342 #(inhard-4) #19330, (inhard-3) #12976,   #26342 (inhard-13) # 7361 
-    config.learning_rate = 1e-4 #0.001
+    config.learning_rate = 1e-4
     config.weight_decay = 3e-3
-    config.batch_size = 5
+    config.batch_size = 3
     config.num_class = 14 #4 #3 #14 (InHARD-13)
-    config.d_model = 21
     #config.back_gd = ['']
     config.back_gd = ['No action']
     config.ensem_weights = [1, 1, 1, 1, 0]
@@ -153,13 +150,12 @@ elif args.dataset_name == "InHARD_2D":
     #config.back_gd = ['']
     config.back_gd = ['No action']
     config.ensem_weights = [1, 1, 1, 1, 0]
-elif args.dataset_name == "IKEA-ASM":
-    config.d_model = 33
+elif args.dataset_name == "IKEA-ASM_2D":
     config.chunk_size = 2 # window for feature augmentation
     config.max_frames_per_video = 993
-    config.learning_rate = 0.001 #1e-4
+    config.learning_rate = 1e-4
     config.weight_decay = 3e-3
-    config.batch_size = 32 #32
+    config.batch_size = 5 #32
     config.num_class = 33
     #config.back_gd = ['']
     config.back_gd = ['NA']
@@ -211,8 +207,7 @@ print("printing in output dir = ", config.output_dir)
 config.project_name="{}-split{}".format(config.dataset, config.split_number)
 config.train_split_file = config.base_dir + "splits/train.split{}.bundle".format(config.split_number)
 config.test_split_file = config.base_dir + "splits/validation.split{}.bundle".format(config.split_number)
-config.features_file_name = config.base_dir + "/features/inhard-13/30fps_p_light" 
-#"/features/inhard-13/30fps_pbv"
+config.features_file_name = config.base_dir + "/features/inhard-13/30fps_p_light"
 
 if args.ft_file is not None:
     config.features_file_name = os.path.join(config.base_dir, args.ft_file)
@@ -222,7 +217,7 @@ if args.ft_size is not None:
     config.feature_size = args.ft_size
     config.output_dir = config.output_dir + "_ft_size{}".format(args.ft_file)
  
-#config.ground_truth_files_dir = config.base_dir + "/groundTruth/" 
+#config.ground_truth_files_dir = config.base_dir + "/groundTruth/4actions/"  #bvh_30fps InHARD-13 sk
 config.ground_truth_files_dir = config.base_dir + "/groundTruth/bvh_30fps/" 
 config.label_id_csv = config.base_dir + 'mapping.csv'
 
@@ -257,34 +252,6 @@ def load_best_model(config):
 def load_avgbest_model(config):
     return torch.load(config.output_dir + '/avgbest_' + config.dataset + '_unet.wt')
 
-class CustomSchedule(_LRScheduler):
-    def __init__(self, optimizer, d_model=21, warmup_steps=5, last_epoch=-1):
-        self.d_model = d_model
-        self.d_model = torch.tensor(self.d_model, dtype=torch.float32)
-        self.warmup_steps = warmup_steps
-        super(CustomSchedule, self).__init__(optimizer, last_epoch)
-
-    def get_lr(self):
-        print('inside lr funct')
-        print('self.base_lrs: ',  self.base_lrs)
-        step = max(1, self.last_epoch + 1)  # avoid zero step
-        arg1 = step ** -0.5
-        arg2 = step * (self.warmup_steps ** -1.5)
-        scale = self.d_model ** -0.5 * min(arg1, arg2)
-
-         # Ensure `scale` is a float
-        if isinstance(scale, torch.Tensor):
-            scale = scale.item()
-
-        # Calculate the new learning rates as a list of scalars
-        new_lr = [base_lr * scale for base_lr in self.base_lrs]
-
-        # Convert tensors in `new_lr` to floats
-        new_lr_values = [lr.item() if isinstance(lr, torch.Tensor) else lr for lr in new_lr]
-        print('new_lr_values: ', new_lr_values)
-
-        return new_lr_values
-    
 def make(config):
     # Make the data
     train, test = get_data(config, train=True), get_data(config, train=False)
@@ -299,74 +266,15 @@ def make(config):
 
     # Make the loss and optimizer
     criterion = get_criterion(config)
-    '''# Define your optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay,
-                                 betas=(0.9, 0.98), eps=1e-9
-                                 )
-    
-    # Assuming d_model is already defined
-    custom_scheduler = CustomSchedule(optimizer=optimizer, d_model=config.d_model)'''
-
     optimizer = torch.optim.Adam(
         model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
-    custom_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
-    
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=config.step_size, gamma=config.gamma)
     
     # postprocessor declaration
     postprocessor = PostProcess(config)
     postprocessor = postprocessor.to(device)
     
-    return model, train_loader, test_loader, criterion, optimizer, custom_scheduler, postprocessor
-
-
-class LabelSmoothingCrossEntropy(nn.Module):
-    def __init__(self, smoothing=0.1, class_weights=None, ignore_index=-100):
-        super(LabelSmoothingCrossEntropy, self).__init__()
-        self.smoothing = smoothing
-        self.confidence = 1.0 - smoothing
-        self.class_weights = class_weights
-        self.ignore_index = ignore_index
-
-    def forward(self, output, target):
-        device = output.device
-
-        # Output: [batch_size, num_classes, seq_length] -> [batch_size, seq_length, num_classes]
-        output = output.permute(0, 2, 1)  # Now [batch_size, seq_length, num_classes]
-
-        # Target: [batch_size, seq_length] -> [batch_size, seq_length, 1]
-        target = target.unsqueeze(-1).to(device)  # Now [batch_size, seq_length, 1]
-
-        num_classes = output.size(-1)
-        assert target.max() < num_classes, "Target contains indices out of bounds"
-
-        # Create smoothed labels on the same device
-        true_dist = torch.full_like(output, self.smoothing / (num_classes - 1), device=device)
-        ignore_mask = (target == self.ignore_index).float()
-
-        try:
-            true_dist.scatter_(2, target, self.confidence)
-        except RuntimeError as e:
-            print("Error in scatter operation:", e)
-            print("Target values:", target.flatten())
-            print("true_dist shape:", true_dist.shape)
-            print("num_classes:", num_classes)
-            raise
-
-        # Zero out the true_dist for ignored indices
-        true_dist = true_dist * (1 - ignore_mask)
-
-        if self.class_weights is not None:
-            class_weights = self.class_weights.unsqueeze(0).unsqueeze(1).to(device)  # [1, 1, num_classes]
-            output = output * class_weights  # Apply class weights to logits
-
-        # Compute loss
-        loss = -true_dist * F.log_softmax(output, dim=-1)
-        loss = torch.sum(loss, dim=-1)
-        loss = loss * (1 - ignore_mask.squeeze(-1))  # Zero out loss for ignored indices
-        loss = torch.sum(loss) / (torch.sum(1 - ignore_mask) + 1e-10)  # Normalize by the number of non-ignored tokens
-
-        return loss
-
+    return model, train_loader, test_loader, criterion, optimizer, scheduler, postprocessor
 
 class CriterionClass(nn.Module):
     def __init__(self, config):
@@ -385,16 +293,13 @@ class CriterionClass(nn.Module):
                                       0.0702484, 0.7961783, 0.9090909, 0.1573812, 0.5062778, 0.0200329, 
                                       0.9619084, 0.2701826])'''
 
-        # Initialize Label Smoothing Cross Entropy Loss
-        #self.ce = LabelSmoothingCrossEntropy(smoothing=0.1, class_weights=class_weights.to(device), ignore_index=-100)
-        
         self.ce = nn.CrossEntropyLoss(ignore_index=-100, weight=class_weights.to(device))  # Frame wise cross entropy loss
         #self.ce = nn.CrossEntropyLoss(ignore_index=-100)
         self.mse = nn.MSELoss(reduction='none')           # Migitating transistion loss 
     
     def forward(self, outp, labels, src_mask, labels_present):
 
-        outp_wo_softmax = torch.log(outp + 1e-10).to(device)       # log is necessary because ensemble gives softmax output
+        outp_wo_softmax = torch.log(outp + 1e-10)         # log is necessary because ensemble gives softmax output
         labels = labels.to(device)
         print(device)
 
@@ -439,11 +344,18 @@ def get_model(config):
     set_seed()
     return my_module.C2F_TCN(config.feature_size, config.num_class)
 
+def replace_non_finite(tensor):
+    # Create a mask where finite values are True
+    mask = torch.isfinite(tensor)
+    
+    # Replace non-finite values (NaNs and Infs) with zeros
+    tensor[~mask] = 0
+    return tensor
+
 
 def get_c2f_ensemble_output(outp, weights):
     
     ensemble_prob = F.softmax(outp[0], dim=1) * weights[0] / sum(weights)
-    #print('ensemble_prob: ', ensemble_prob.shape)
 
     for i, outp_ele in enumerate(outp[1]):
         #print('outp_ele: ', outp_ele.shape) 
@@ -451,6 +363,7 @@ def get_c2f_ensemble_output(outp, weights):
         #print('uppsampled outp_ele: ', upped_logit.shape)
         ensemble_prob = ensemble_prob + F.softmax(upped_logit, dim=1) * weights[i + 1] / sum(weights)
         #print('ensemble_prob: ', ensemble_prob.shape)
+    
 
     return ensemble_prob
 
@@ -482,6 +395,9 @@ def train(model, loader, criterion, optimizer, scheduler, config, test_loader, p
 
             outputs_ensemble = get_c2f_ensemble_output(outputs_list, config.ensem_weights)
 
+            # Replace non-finite values in outputs_ensemble
+            outputs_ensemble = replace_non_finite(outputs_ensemble)
+
 
             try:
                 # Ensure outputs and labels are finite
@@ -493,11 +409,16 @@ def train(model, loader, criterion, optimizer, scheduler, config, test_loader, p
                 # Calculate loss
                 loss_dict = criterion(outputs_ensemble, labels, src_msk_send, item[6].to(device))
                 loss = loss_dict['full_loss']
+
+                print("Loss before backward:", loss_dict.item())
     
                 # Backward pass ⬅
                 optimizer.zero_grad()
                 with torch.autograd.detect_anomaly():
                     loss.backward()
+
+                # Gradient Clipping
+                #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
 
                 # Step with optimizer
                 optimizer.step()
@@ -505,21 +426,17 @@ def train(model, loader, criterion, optimizer, scheduler, config, test_loader, p
             except Exception as e:
                 print(f"Error during training: {e}")
 
+            
+            
+            
+
+            
+
+            
+            
             if i % 10 == 0:
                 end = time.time()
                 print(f"Train loss after {epoch} epochs, time: {end - start}, {i} iterations is {loss_dict['full_loss']:.3f}")
-            
-        # Update the scheduler
-        scheduler.step()
-
-        # Get the learning rate from the optimizer
-        '''current_lr = scheduler.get_lr()[0]
-        print(f"Learning Rate: {current_lr}")'''
-
-            
-            
-            
-            
 
         acc, avg_score = test(model, test_loader, criterion, postprocessor, config, epoch, '')
         if avg_score > avg_best_acc:
@@ -535,21 +452,12 @@ def train(model, loader, criterion, optimizer, scheduler, config, test_loader, p
         torch.save(model.state_dict(), config.output_dir + '/last_' + config.dataset + '_unet.wt')
         accs.append(acc)
         accs.sort(reverse=True)
-
-        
+        scheduler.step()
         print(f'Validation best accuracies till now -> {" ".join(["%.2f"%item for item in accs[:3]])}')
-        print('-------------------------------------------------')
 
-        
-
-        '''# If warmup is done, switch to the post-warmup scheduler
-        if epoch >= config.warmup_epochs:
-            post_warmup_scheduler.step()'''
-
-        
         # Check for early stopping
-        if no_improvement_epochs >= 400:
-            print(f"Early stopping triggered after {epoch+1} epochs due to no improvement in accuracy for 400 epochs.")
+        if no_improvement_epochs >= 100:
+            print(f"Early stopping triggered after {epoch+1} epochs due to no improvement in accuracy for 100 epochs.")
             break
 
 

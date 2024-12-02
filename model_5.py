@@ -20,7 +20,9 @@ class double_conv(nn.Module):
         )
 
     def forward(self, x):
+        #print('inin: ', x.shape)
         x = self.conv(x)
+        #print('outout: ', x.shape)
         return x
 
 
@@ -49,7 +51,9 @@ class down(nn.Module):
             nn.MaxPool1d(2), double_conv(in_ch, out_ch))
 
     def forward(self, x):
+        #print('in: ', x.shape)
         x = self.max_pool_conv(x)
+        #print('out: ', x.shape)
         return x
 
 class up(nn.Module):
@@ -140,12 +144,31 @@ class C2F_TCN(nn.Module):
         self.weights = torch.nn.Parameter(torch.ones(5)) #6
 
     def forward(self, x):
+
+        '''# Check for NaNs in raw data
+        if torch.isnan(x).any():
+            print("NaNs found in raw input data")
+            print("Indices of NaNs:", torch.nonzero(torch.isnan(x)))
+        # Replace NaNs with zeros
+        x = torch.where(torch.isnan(x), torch.zeros_like(x), x)
+        # Validate after replacement
+        if torch.isnan(x).any():
+            print("NaNs found after replacement")
+            # You may want to take additional actions here'''
+    
+        #print('input: ', x.shape)
         x1 = self.inc(x)
+        #print('x1: ', x1.shape)
         x2 = self.down1(x1)
+        #print('x2: ', x2.shape)
         x3 = self.down2(x2)
+        #print('x3: ', x3.shape)
         x4 = self.down3(x3)
+        #print('x4: ', x4.shape)
         x5 = self.down4(x4)
+        #print('x5: ', x5.shape)
         x6 = self.down5(x5)
+        #print('x6: ', x6.shape)
 
         x6 = self.tpp(x6)
 
