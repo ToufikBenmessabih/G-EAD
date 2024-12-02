@@ -40,7 +40,7 @@ This project focuses on **temporal action segmentation** using **human skeleton 
 
 ### Data Folder Structure:
 - `groundtruth/`: Ground truth annotations for the datasets.
-- `position_features/`: Extracted skeleton features.
+- `features/`: Extracted skeleton features.
 - `mapping.csv`: Action class mapping.
 - `results/`: Model predictions and metrics.
 
