@@ -73,9 +73,9 @@ Key files and folders:
    pip install -r requirements.txt
    ```
 3. Install pytorch:
-   Check Installed CUDA Toolkit Version: ``` nvcc --version```
-   Check NVIDIA Driver Version: ``` nvidia-smi```
-   Install CUDA: https://developer.nvidia.com/cuda-toolkit-archive
+   - Check Installed CUDA Toolkit Version: ``` nvcc --version```
+   - Check NVIDIA Driver Version: ``` nvidia-smi```
+   - Install CUDA: https://developer.nvidia.com/cuda-toolkit-archive
    
    
 ---
