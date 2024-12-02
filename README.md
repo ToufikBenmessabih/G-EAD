@@ -1,64 +1,108 @@
-# C2F-TCN: Coarse to Fine Multi-Resolution Temporal Convolutional Network for Temporal Action Segmentation
 
-Official implementation of Coarse to Fine Multi-Resolution Temporal Convolutional Network for Temporal Action Segmentation [link](https://arxiv.org/pdf/2105.10859.pdf)
+# Temporal Action Segmentation with Human Skeletons and Attention Mechanism
 
-Code for full supervsion version of ‘C2F-TCN: A Framework for Semi- and Fully-Supervised Temporal Action Segmentation’ [link](https://ieeexplore.ieee.org/abstract/document/10147035) published in TPAMI-2023.
+This project focuses on **temporal action segmentation** using **human skeleton (graph representation)** and attention mechanisms. The model processes **3D human skeleton data** (either real or extracted from RGB videos) to predict an action for each frame, achieving sequence segmentation.
 
-Code for semi-supervised version of the same is available at [link](https://github.com/dipika-singhania/ICC-Semi-Supervised-TAS).
+## Table of Contents
+- [Features](#features)
+- [Datasets](#datasets)
+- [Project Structure](#project-structure)
+- [Setup](#setup)
+- [Usage](#usage)
+  - [Training](#training)
+  - [Evaluation](#evaluation)
+- [Results](#results)
+- [License](#license)
 
+---
 
+## Features
+- Input: **3D human skeleton data**
+  - Real human skeleton data
+  - Extracted skeletons from RGB videos
+- Output: **Action predictions** for each frame, with actions segmented by classes.
+- Supports benchmark datasets:
+  - **InHARD**
+  - **IKEA Assembly Dataset**
+  - **HA4M**
+- Evaluation metrics:
+  - **Mean Over Frame**
+  - **Edit Score**
+  - **F1 Score** at thresholds [10%, 25%, 50%].
 
-### Data download and directory structure:
+---
 
-The I3D features, ground-truth and test split files are similar used to [MSTCN++](https://github.com/yabufarha/ms-tcn). 
-In the mstcn_data, download additional files, checkpoints and semi-supervised splits can be downloaded from [drive](https://drive.google.com/drive/folders/1ArYPctLZZKfjicEf5nl4LJrY9xxFc6wU?usp=sharing) . 
-Specifically, this drive link contains all necessary data in required directory structure except breakfast I3D feature files which can be downloaded from MSTCN++ data directory.
-It also contains the checkpoints files for supervised C2FTCN.
+## Datasets
+### Links to Datasets:
+- **[InHARD Benchmark](https://paperswithcode.com/dataset/inhard)**
+- **[IKEA Assembly Dataset](https://ikeaasm.github.io/)**
+- **[HA4M Dataset](https://baltig.cnr.it/ISP/ha4m)**
 
-The data directory is arranged in following structure
+### Data Folder Structure:
+- `groundtruth/`: Ground truth annotations for the datasets.
+- `position_features/`: Extracted skeleton features.
+- `mapping.csv`: Action class mapping.
+- `results/`: Model predictions and metrics.
 
-- mstcn_data
-   - mapping.csv
-   - dataset_name
-   - groundTruth
-   - splits
-   - results
-        - supervised_C2FTCN
-            - split1
-              - check_pointfile
-            - split2
-            - 
+---
 
-### Run Scripts
-The various scripts to run the supervised training, evaluation with test augmentation or with test augmentation is provided as example below.
-Change the dataset_name,  to run on a different dataset.
+## Project Structure
+Key files and folders:
+- `train.py`: Main script for training the model.
+- `eval.py`: Script for model evaluation.
+- `model/`: Directory containing different model implementations (e.g., GCN, AGCN, ST-GCN, etc.).
+- `helpers/`: Utility functions and helper scripts.
+- `requirements.txt`: List of dependencies for the project.
 
-#### Training C2FTCN for a particular split of a dataset
-    ##### python train.py --dataset_name <gtea/50salads/breakfast> --cudad <cuda_device_number> --base_dir <data_directory_for_dataset> --split <split_number>
-    Example:
-    python train.py --dataset_name 50salads --cudad 1 --base_dir ../mstcn_data/50salads/ --split 5
-    python train.py --dataset_name InHARD_13 --cudad 0 --base_dir ./data/InHARD-13/ --split 1
+---
 
+## Setup
+### Prerequisites
+- Python 3.8+
+- CUDA-compatible GPU
 
-#### Evaluate C2FTCN without test time augmentation, showing average results from all splits of dataset
-    ##### python eval.py --dataset_name <gtea/50salads/breakfast> --cudad <cuda_device_number> --base_dir <data_directory_for_dataset> --compile_result
-    Example:
-    python eval_1.py --dataset_name InHARD_13 --cudad 0 --base_dir ./data/InHARD-13/ --compile_result
+### Installation
+1. Clone the repository:
+   ```bash
+   git clone <repository_url>
+   cd <repository_name>
+   ```
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-#### Evaluate C2FTCN with test time augmentation, showing average results from all splits of dataset
-    ##### python eval.py --dataset_name <gtea/50salads/breakfast> --cudad <cuda_device_number> --base_dir <data_directory_for_dataset>
-    Example:
-    python eval.py --dataset_name 50salads --cudad 2 --base_dir ../mstcn_data/50salads/
+---
 
+## Usage
 
+### Training
+To train the model:
+```bash
+python train.py --dataset_name <InHARD/IKEA/HA4M> --cudad <cuda_device_number> --base_dir <data_directory_for_dataset> --split <split_number>
+```
 
-### Citation:
+#### Arguments:
+- `--dataset_name`: Name of the dataset to use (e.g., `InHARD`, `IKEA`, `HA4M`).
+- `--cudad`: CUDA device number.
+- `--base_dir`: Path to the dataset directory.
+- `--split`: Dataset split number.
 
-If you use the code, please cite
+### Evaluation
+To evaluate the model:
+```bash
+python eval.py --dataset_name <gtea/IKEA/HA4M> --cudad <cuda_device_number> --base_dir <data_directory_for_dataset>
+```
 
-D. Singhania, R. Rahaman and A. Yao, "C2F-TCN: A Framework for Semi- and Fully-Supervised Temporal Action Segmentation," in IEEE Transactions on Pattern Analysis and Machine Intelligence, doi: 10.1109/TPAMI.2023.3284080.
+---
 
-Singhania, D., Rahaman, R., & Yao, A. (2022, June). Iterative contrast-classify for semi-supervised temporal action segmentation. In Proceedings of the AAAI Conference on Artificial Intelligence (Vol. 36, No. 2, pp. 2262-2270).
+## Results
+Predictions and evaluation metrics are stored in the `results/` folder. Metrics include:
+- **Mean Over Frame**
+- **Edit Score**
+- **F1 Score** at thresholds (10%, 25%, 50%).
 
+---
 
-    
+## License
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
