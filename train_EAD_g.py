@@ -22,7 +22,7 @@ seed = 42
 
 
 my_parser = argparse.ArgumentParser()
-my_parser.add_argument('--dataset_name', type=str, default="breakfast", choices=['InHARD_13', 'IKEA-ASM'])
+my_parser.add_argument('--dataset_name', type=str, default="breakfast", choices=['InHARD_13'])
 my_parser.add_argument('--split', type=int, required=True, help="Split number of the dataset")
 my_parser.add_argument('--cudad', type=str, default='0', help="Cuda device number to run the program")
 my_parser.add_argument('--base_dir', type=str, help="Base directory containing groundTruth, features, splits, results directory of dataset")
@@ -37,6 +37,11 @@ my_parser.add_argument('--ft_size', type=int, required=False, help="Default=2048
 my_parser.add_argument('--err_bar', type=int, required=False)
 my_parser.add_argument('--num_workers', type=int, default=0, help="Number of workers to be used for data loading")
 my_parser.add_argument('--out_dir', required=False, help="Directory where output(checkpoints, logs, results) is to be dumped")
+
+my_parser.add_argument("--num_heads", type=int, required=True, help="Number of heads")
+my_parser.add_argument("--hidden_dim", type=int, required=True, help="Hidden dimension")
+my_parser.add_argument("--bottleneck_dim", type=int, required=True, help="Bottleneck dimension")
+ 
 args = my_parser.parse_args()
 
 
@@ -65,12 +70,13 @@ print('device: ', device)
 config = dotdict(
     epochs = 500,
     dataset = args.dataset_name,
-    #feature_size = 75, # shape (None, 25, 3)
     feature_size = 63, # shape (None, 21, 3)
-    #feature_size = 216, # shape (None, 72, 3)
     split_number = args.split,
     model_path = args.model_path,
     base_dir = args.base_dir,
+    num_heads = args.num_heads,
+    hidden_dim = args.hidden_dim,
+    bottleneck_dim = args.bottleneck_dim,
     aug=1,
     lps=0)
 
@@ -81,27 +87,30 @@ if args.dataset_name == "InHARD_13":
     config.max_frames_per_video = 7360 #26342 #(inhard-4) #19330, (inhard-3) #12976,   #26342 (inhard-13) # 7361 
     config.learning_rate = 0.001 #1e-4 
     config.weight_decay = 3e-3
-    config.batch_size = 5
+    config.batch_size = 3
     config.num_class = 14 #{3, 4, 14}
     config.d_model = 21
-    #config.back_gd = ['']
     config.back_gd = ['No action']
     config.ensem_weights = [1, 1, 1, 1, 0]
-elif args.dataset_name == "IKEA-ASM":
-    config.d_model = 25
-    config.chunk_size = 2 # window for feature augmentation
-    config.max_frames_per_video = 993
-    config.learning_rate = 0.001 #1e-4
-    config.weight_decay = 3e-3
-    config.batch_size = 32
-    config.num_class = 14 #33
-    #config.back_gd = ['']
-    config.back_gd = ['NA']
-    config.ensem_weights = [1, 1, 1, 1, 0]
 
-config.output_dir = config.base_dir + "results/supervised_C2FTCN/"
-if not os.path.exists(config.output_dir):
-    os.mkdir(config.output_dir)
+#-----------------------------------------------------------------------------------
+# Define your OneDrive directory path
+one_drive_dir = os.path.join(
+    "C:\\Users", "2492245", "OneDrive", "results"
+)
+
+# Ensure the OneDrive results directory exists
+os.makedirs(one_drive_dir, exist_ok=True)
+
+# Construct the output directory within OneDrive
+config.output_dir = os.path.join(
+    one_drive_dir,
+    f"EAD_g_{config.num_heads}_{config.hidden_dim}_{config.bottleneck_dim}"
+)
+
+# Create the output directory if it doesn't exist
+os.makedirs(config.output_dir, exist_ok=True)
+#--------------------------------------------------------------------------------
 
 config.output_dir = config.output_dir + "split{}".format(config.split_number)
 
@@ -127,7 +136,7 @@ print("printing in output dir = ", config.output_dir)
 config.project_name="{}-split{}".format(config.dataset, config.split_number)
 config.train_split_file = config.base_dir + "splits/train.split{}.bundle".format(config.split_number)
 config.test_split_file = config.base_dir + "splits/validation.split{}.bundle".format(config.split_number)
-config.features_file_name = config.base_dir + "/features/inhard-13/30fps_p_light/"
+config.features_file_name = config.base_dir + "/features/30fps_p_light/"
 
 if args.ft_file is not None:
     config.features_file_name = os.path.join(config.base_dir, args.ft_file)
@@ -291,7 +300,7 @@ def make_loader(dataset, batch_size, train=True):
 def get_model(config):
     my_module = importlib.import_module(config.model_path)
     set_seed()
-    return my_module.C2F_TCN(config.feature_size, config.num_class)
+    return my_module.C2F_TCN(config.feature_size, config.num_class, config.num_heads, config.hidden_dim, config.bottleneck_dim)
 
 def get_c2f_ensemble_output(outp, weights):
     
@@ -392,8 +401,8 @@ def train(model, loader, criterion, optimizer, scheduler, config, test_loader, p
 
         
         # Check for early stopping
-        if no_improvement_epochs >= 100:
-            print(f"Early stopping triggered after {epoch+1} epochs due to no improvement in accuracy for 100 epochs.")
+        if no_improvement_epochs >= 30:
+            print(f"Early stopping triggered after {epoch+1} epochs due to no improvement in accuracy for 30 epochs.")
             break
 
 def test(model, test_loader, criterion, postprocessors, args, epoch, dump_prefix):

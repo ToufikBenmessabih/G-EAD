@@ -40,6 +40,8 @@ class InfoGCN(nn.Module):
                  in_channels,
                  out_channels,
                  kernel_size,
+                 num_heads,
+                 hidden_dim,
                  t_kernel_size=1,
                  t_stride=1,
                  t_padding=0,
@@ -48,16 +50,16 @@ class InfoGCN(nn.Module):
         super().__init__()
 
         self.kernel_size = kernel_size
-        num_head = 2
+        self.num_heads = num_heads 
         num_point= 21
         self.num_point = num_point
        
-        A = np.stack([np.eye(num_point)] * num_head, axis=0)
+        A = np.stack([np.eye(num_point)] * self.num_heads, axis=0)
 
         self.to_joint_embedding = nn.Linear(kernel_size, out_channels)
         self.pos_embedding = nn.Parameter(torch.randn(1, self.num_point, out_channels))
         self.data_bn = nn.BatchNorm1d(out_channels * num_point)
-        self.l1 = EncodingBlock(out_channels,out_channels,A)
+        self.l1 = EncodingBlock(out_channels, out_channels, A, hidden_dim)
 
         self.conv = nn.Conv2d(
             in_channels,
