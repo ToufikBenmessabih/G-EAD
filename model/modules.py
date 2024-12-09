@@ -66,7 +66,7 @@ class SelfAttention(nn.Module):
         return attn
     
 class SA_GC(nn.Module):
-    def __init__(self, in_channels, out_channels, A):
+    def __init__(self, in_channels, out_channels, A, hidden_dim):
         super(SA_GC, self).__init__()
         self.out_c = out_channels
         self.in_c = in_channels
@@ -97,8 +97,8 @@ class SA_GC(nn.Module):
         for i in range(self.num_head):
             conv_branch_init(self.conv_d[i], self.num_head)
 
-        rel_channels = in_channels // 2
-        self.attn = SelfAttention(in_channels, rel_channels, self.num_head)
+        #hidden_channels = in_channels // 2
+        self.attn = SelfAttention(in_channels, hidden_dim, self.num_head)
 
 
     def forward(self, x, attn=None):
@@ -133,9 +133,9 @@ class SA_GC(nn.Module):
         return out
 
 class EncodingBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, A, stride=1, residual=True):
+    def __init__(self, in_channels, out_channels, A, hidden_dim, stride=1, residual=True):
         super(EncodingBlock, self).__init__()
-        self.agcn = SA_GC(in_channels, out_channels, A)
+        self.agcn = SA_GC(in_channels, out_channels, A, hidden_dim)
 
         self.relu = nn.ReLU(inplace=False)
 
