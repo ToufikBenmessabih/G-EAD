@@ -76,7 +76,7 @@ Key files and folders:
    - Check NVIDIA Driver Version: ``` nvidia-smi```
    - Install CUDA: https://developer.nvidia.com/cuda-toolkit-archive
    - Check Installed CUDA Toolkit Version: ``` nvcc --version```
-   - Install PyTorch (change version if necessary): ``pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu117``
+   - Install PyTorch (change version if necessary): ``pip install torch==1.13.1+cu117 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu117``
 
 ## Usage
 
