@@ -58,7 +58,7 @@ Key files and folders:
 
 ## Setup
 ### Prerequisites
-- Python 3.7.7
+- Python 3.7.7: [link](https://www.python.org/downloads/release/python-377/)
 - CUDA-compatible GPU
 - VM : GPU Name: GRID T4-16Q (a virtualized NVIDIA Tesla T4).
 
