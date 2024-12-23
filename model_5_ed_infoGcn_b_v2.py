@@ -89,7 +89,7 @@ class up(nn.Module):
         return x
 
 class TPPblock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size):
+    def __init__(self, in_channels, bottleneck_dim, kernel_size, num_heads, hidden_dim):
         super(TPPblock, self).__init__()
         self.pool1 = nn.MaxPool1d(kernel_size=2, stride=2)
         self.pool2 = nn.MaxPool1d(kernel_size=3, stride=3)
@@ -97,14 +97,14 @@ class TPPblock(nn.Module):
         self.pool4 = nn.MaxPool1d(kernel_size=6, stride=6)
 
         # select the output dim of each resolution
-        out_dim_4 = out_channels * 4
+        out_dim_4 = bottleneck_dim * 4
 
         #self.gcn = InfoGCN(in_channels, in_channels, kernel_size[1])
-        self.gcn = InfoGCN(in_channels+out_dim_4, in_channels+out_dim_4, kernel_size[1])
+        self.gcn = InfoGCN(in_channels+out_dim_4, in_channels+out_dim_4, kernel_size[1], num_heads, hidden_dim)
 
         # use different out channels : for conv2D 
         self.conv = nn.Conv2d(
-            in_channels=in_channels, out_channels=out_channels, kernel_size=1, padding=0
+            in_channels=in_channels, out_channels=bottleneck_dim, kernel_size=1, padding=0
         )
 
     def forward(self, x, A):
@@ -277,13 +277,11 @@ class C2F_TCN(nn.Module):
             :math:`V_{in}` is the number of graph nodes = 21,
             :math:`M_{in}` is the number of instance (persons) in a frame = 1 person.
     """
-    def __init__(self, n_channels, n_classes):
+    def __init__(self, n_channels, n_classes, num_heads, hidden_dim, bottleneck_dim):
         super(C2F_TCN, self).__init__()
 
         # load graph
-        graph_args = {'layout': 'inhard', 'strategy': 'spatial'}  
-        #graph_args = {'layout': 'IKEA', 'strategy': 'spatial'}  
-        #graph_args = {'layout': 'IKEA_up', 'strategy': 'spatial'}  
+        graph_args = {'layout': 'inhard', 'strategy': 'spatial'} 
         window_size = 120 # 4seconds
 
         self.graph = Graph(**graph_args)
@@ -299,6 +297,7 @@ class C2F_TCN(nn.Module):
         kernel_size = (temporal_kernel_size, spatial_kernel_size)
 
         n_channels = A.size(0)
+        up_in_dim = 256 + (bottleneck_dim * 4)
 
         self.ing = down(n_channels, 256, kernel_size)
 
@@ -308,7 +307,7 @@ class C2F_TCN(nn.Module):
         self.down4 = down(128, 128, kernel_size)
         self.down5 = down(128, 128, kernel_size)
         self.down6 = down(128, 128, kernel_size)
-        self.up = up(384, 128, kernel_size)
+        self.up = up(up_in_dim, 128, kernel_size)
         self.outcc1 = outconv(128, n_classes, kernel_size)
         self.up1 = up(256, 128, kernel_size)
         self.outcc2 = outconv(128, n_classes, kernel_size)
@@ -319,7 +318,7 @@ class C2F_TCN(nn.Module):
         self.up4 = up(384, 128, kernel_size)
         self.outcc = outconv(128, n_classes, kernel_size)
 
-        self.tpp = TPPblock(128, 32, kernel_size)
+        self.tpp = TPPblock(128, bottleneck_dim, kernel_size, num_heads, hidden_dim)
         
         self.weights = torch.nn.Parameter(torch.ones(5)) #6
 
