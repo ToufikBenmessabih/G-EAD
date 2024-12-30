@@ -89,7 +89,9 @@ To train the model:
 python train.py --dataset_name <InHARD/IKEA/HA4M> --cudad <cuda_device_number> --base_dir <data_directory_for_dataset> --split <split_number>
 ```
 With grid search:
-``python grid_search.py``
+```bash
+python grid_search.py
+```
 
 #### Arguments:
 - `--dataset_name`: Name of the dataset to use (e.g., `InHARD`, `IKEA`, `HA4M`).
