@@ -1,5 +1,5 @@
 
-# Temporal Action Segmentation with Human Skeletons and Attention Mechanism
+# Graph-Based Framework for Temporal Human Action Recognition and Segmentation In Industrial Context
 
 This project focuses on **temporal action segmentation** using **human skeleton (graph representation)** and attention mechanisms. The model processes **3D human skeleton data** (either real or extracted from RGB videos) to predict an action for each frame, achieving sequence segmentation.
 
